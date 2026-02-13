@@ -1,0 +1,70 @@
+# Application services
+# Usage: docker compose -f docker-compose.apps.yml up -d --build
+
+services:
+  landing:
+    build:
+      context: /opt/getouch/services/landing
+      dockerfile: Dockerfile
+    container_name: landing
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      VERSION: "1.0.0"
+    networks:
+      - getouch_app
+
+  bot:
+    build:
+      context: /opt/getouch/services/bot
+      dockerfile: Dockerfile
+    container_name: bot
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      VERSION: "1.0.0"
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "qwen2.5:7b"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://getouch:getouch@postgres:5432/getouch_bot}
+    networks:
+      - getouch_app
+      - getouch_data
+
+  wa:
+    build:
+      context: /opt/getouch/services/wa
+      dockerfile: Dockerfile
+    container_name: wa
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      VERSION: "1.0.0"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://getouch:getouch@postgres:5432/getouch_wa}
+    volumes:
+      - /opt/getouch/data/wa-sessions:/app/sessions
+    networks:
+      - getouch_app
+      - getouch_data
+
+  api:
+    build:
+      context: /opt/getouch/services/api
+      dockerfile: Dockerfile
+    container_name: api
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      VERSION: "1.0.0"
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: "11434"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://getouch:getouch@postgres:5432/getouch_api}
+    networks:
+      - getouch_app
+      - getouch_data
+
+networks:
+  getouch_app:
+    external: true
+  getouch_data:
+    external: true

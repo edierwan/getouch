@@ -1,0 +1,26 @@
+# Getouch Platform — Caddy Reverse Proxy Configuration
+# Cloudflare handles TLS at edge; Caddy receives plain HTTP from cloudflared.
+
+{
+	auto_https off
+}
+
+:80 {
+	respond "getouch platform" 200
+}
+
+getouch.co:80 {
+	reverse_proxy landing:3000
+}
+
+bot.getouch.co:80 {
+	reverse_proxy bot:3000
+}
+
+wa.getouch.co:80 {
+	reverse_proxy wa:3000
+}
+
+api.getouch.co:80 {
+	reverse_proxy api:3000
+}

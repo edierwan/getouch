@@ -1,0 +1,23 @@
+# Ollama LLM with GPU passthrough
+# Usage: docker compose -f docker-compose.ollama.yml up -d
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - /opt/getouch/data/ollama:/root/.ollama
+    networks:
+      - getouch_data
+
+networks:
+  getouch_data:
+    external: true

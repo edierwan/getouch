@@ -1,0 +1,5 @@
+# Getouch Infra — ignore secrets
+.env
+*.pem
+*.key
+tunnel-credentials.json

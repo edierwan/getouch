@@ -1,0 +1,46 @@
+# Core stack: Caddy reverse proxy + Cloudflare Tunnel + whoami (smoke test)
+# Usage: docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - /opt/getouch/config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "127.0.0.1:80:80"        # local access only
+    networks:
+      - getouch_ingress
+      - getouch_app
+    depends_on:
+      - whoami
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - getouch_ingress
+    depends_on:
+      - caddy
+
+  # Temporary smoke-test target — remove after real services are deployed
+  whoami:
+    image: traefik/whoami:latest
+    restart: unless-stopped
+    networks:
+      - getouch_app
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  getouch_ingress:
+    external: true
+  getouch_app:
+    external: true
