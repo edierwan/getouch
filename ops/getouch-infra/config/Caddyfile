@@ -1,26 +1,86 @@
 # Getouch Platform — Caddy Reverse Proxy Configuration
 # Cloudflare handles TLS at edge; Caddy receives plain HTTP from cloudflared.
+# Security headers applied globally via snippet.
 
 {
 	auto_https off
 }
 
+# ── Security Headers Snippet ──────────────────────────────────────
+(security_headers) {
+	header {
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "SAMEORIGIN"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		Permissions-Policy        "camera=(), microphone=(), geolocation=(), payment=()"
+		X-XSS-Protection          "1; mode=block"
+		-Server
+	}
+}
+
+# ── Stricter CSP for admin / internal pages ──
+(admin_csp) {
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
+	}
+}
+
+# ── Catch-all ─────────────────────────────────────────────────────
 :80 {
 	respond "getouch platform" 200
 }
 
+# ── Landing ───────────────────────────────────────────────────────
 getouch.co:80 {
+	import security_headers
 	reverse_proxy landing:3000
 }
 
+# ── Bot Chatbot ───────────────────────────────────────────────────
 bot.getouch.co:80 {
+	import security_headers
 	reverse_proxy bot:3000
 }
 
+# ── WhatsApp Gateway ──────────────────────────────────────────────
 wa.getouch.co:80 {
+	import security_headers
+
+	route /v1/* {
+		reverse_proxy landing:3000
+	}
 	reverse_proxy wa:3000
 }
 
+# ── API ───────────────────────────────────────────────────────────
 api.getouch.co:80 {
-	reverse_proxy api:3000
+	import security_headers
+
+	handle /api/internal/* {
+		import admin_csp
+		reverse_proxy api:3000
+	}
+	handle {
+		reverse_proxy api:3000
+	}
+}
+
+# ── pgAdmin — Cloudflare Access protected ─────────────────────────
+db.getouch.co:80 {
+	import security_headers
+	import admin_csp
+	reverse_proxy pgadmin:5050
+}
+
+# ── Grafana — Cloudflare Access protected (SSO via auth proxy) ────
+grafana.getouch.co:80 {
+	import security_headers
+	reverse_proxy grafana:3000
+}
+
+# ── Prometheus — Cloudflare Access protected ──────────────────────
+metrics.getouch.co:80 {
+	import security_headers
+	import admin_csp
+	reverse_proxy prometheus:9090
 }

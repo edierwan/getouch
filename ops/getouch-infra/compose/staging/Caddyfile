@@ -1,0 +1,28 @@
+{
+    auto_https off
+}
+
+# ── Staging Landing ──────────────────────────────────────
+stg.getouch.co:80 {
+    reverse_proxy landing:3000
+}
+
+# ── Staging Bot ──────────────────────────────────────────
+bot.stg.getouch.co:80 {
+    reverse_proxy bot:3000
+}
+
+# ── Staging WhatsApp ─────────────────────────────────────
+wa.stg.getouch.co:80 {
+    reverse_proxy wa:3000
+}
+
+# ── Staging API ──────────────────────────────────────────
+api.stg.getouch.co:80 {
+    reverse_proxy api:3000
+}
+
+# ── Staging pgAdmin ──────────────────────────────────────
+db.stg.getouch.co:80 {
+    reverse_proxy pgadmin:5050
+}

@@ -1,0 +1,55 @@
+# Staging Database Stack
+# Uses SATA disk for cost-effective staging data
+# Usage: docker compose -p getouch-stg -f docker-compose.db.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-stg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-getouch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-getouch}
+      TZ: Asia/Kuala_Lumpur
+    volumes:
+      - /data/postgres-stg:/var/lib/postgresql/data
+      - /opt/getouch-stg/config/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    expose:
+      - "5432"
+    networks:
+      - stg_data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-getouch}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-stg
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@getouch.co}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_LISTEN_PORT: 5050
+    expose:
+      - "5050"
+    networks:
+      - stg_data
+      - stg_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  stg_data:
+    external: true
+  stg_app:
+    external: true

@@ -1,0 +1,96 @@
+# Staging App Services
+# Usage: docker compose -p getouch-stg -f docker-compose.apps.yml up -d
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  landing:
+    <<: *app-defaults
+    container_name: landing-stg
+    build:
+      context: /opt/getouch-stg/services/landing
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3000"
+      NODE_ENV: staging
+      TZ: Asia/Kuala_Lumpur
+    expose:
+      - "3000"
+    networks:
+      - stg_app
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  bot:
+    <<: *app-defaults
+    container_name: bot-stg
+    build:
+      context: /opt/getouch-stg/services/bot
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3000"
+      NODE_ENV: staging
+      OLLAMA_HOST: ${OLLAMA_HOST:-ollama}
+      OLLAMA_PORT: ${OLLAMA_PORT:-11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      DATABASE_URL: ${DATABASE_URL_BOT:-postgresql://getouch:${POSTGRES_PASSWORD}@postgres-stg:5432/getouch_bot}
+      TZ: Asia/Kuala_Lumpur
+    expose:
+      - "3000"
+    networks:
+      - stg_app
+      - stg_data
+
+  wa:
+    <<: *app-defaults
+    container_name: wa-stg
+    build:
+      context: /opt/getouch-stg/services/wa
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3000"
+      NODE_ENV: staging
+      DATABASE_URL: ${DATABASE_URL_WA:-postgresql://getouch:${POSTGRES_PASSWORD}@postgres-stg:5432/getouch_wa}
+      TZ: Asia/Kuala_Lumpur
+    expose:
+      - "3000"
+    volumes:
+      - /opt/getouch-stg/data/wa-sessions:/app/sessions
+    networks:
+      - stg_app
+      - stg_data
+
+  api:
+    <<: *app-defaults
+    container_name: api-stg
+    build:
+      context: /opt/getouch-stg/services/api
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3000"
+      NODE_ENV: staging
+      OLLAMA_HOST: ${OLLAMA_HOST:-ollama}
+      OLLAMA_PORT: ${OLLAMA_PORT:-11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://getouch:${POSTGRES_PASSWORD}@postgres-stg:5432/getouch}
+      TZ: Asia/Kuala_Lumpur
+    expose:
+      - "3000"
+    networks:
+      - stg_app
+      - stg_data
+
+networks:
+  stg_app:
+    external: true
+  stg_data:
+    external: true
