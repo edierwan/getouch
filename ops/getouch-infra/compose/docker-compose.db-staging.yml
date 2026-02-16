@@ -1,0 +1,50 @@
+# Staging Postgres (SATA SSD at /data)
+# Phase 1: Runs alongside production postgres with NO impact.
+#
+# Usage:
+#   cd /opt/getouch/compose
+#   docker compose -f docker-compose.db-staging.yml --env-file /opt/getouch/compose/.env up -d
+#
+# Verification:
+#   docker ps | grep postgres-ssd
+#   docker inspect postgres-ssd --format '{{range .Mounts}}{{.Source}}{{end}}'
+#   docker exec postgres-ssd pg_isready -U getouch
+
+services:
+  postgres-ssd:
+    image: postgres:16-alpine
+    container_name: postgres-ssd
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_STG_USER:-getouch}
+      POSTGRES_PASSWORD: ${POSTGRES_STG_PASSWORD:?Set POSTGRES_STG_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_STG_DB:-getouch}
+      TZ: Asia/Kuala_Lumpur
+    volumes:
+      - /data/postgres-ssd:/var/lib/postgresql/data
+      - /opt/getouch/config/init-databases-staging.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    ports:
+      # Only localhost, not public. For debugging/pgAdmin from host.
+      - "127.0.0.1:5433:5432"
+    networks:
+      - getouch_data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_STG_USER:-getouch}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+networks:
+  getouch_data:
+    external: true

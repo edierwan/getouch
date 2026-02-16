@@ -1,0 +1,45 @@
+# Coolify — Self-hosted CI/CD platform
+# Data persisted on SATA SSD at /data/coolify
+#
+# Usage:
+#   cd /opt/getouch/compose
+#   docker compose -f docker-compose.coolify.yml --env-file .env up -d
+#
+# Access:
+#   https://coolify.getouch.co (via Cloudflare Tunnel → Caddy)
+#
+# NOTE: Coolify by default uses port 8000 for its web UI.
+#       We DO NOT expose this publicly. Caddy reverse-proxies to it.
+
+services:
+  coolify:
+    image: ghcr.io/coollabsio/coolify:latest
+    container_name: coolify
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Kuala_Lumpur
+      # Coolify needs access to Docker socket to manage containers
+      # It will manage its own internal DB (SQLite or PostgreSQL)
+    volumes:
+      - /data/coolify:/data/coolify
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      # Only localhost — NOT public. Caddy handles ingress.
+      - "127.0.0.1:8000:8000"
+    networks:
+      - getouch_app
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+networks:
+  getouch_app:
+    external: true

@@ -31,8 +31,16 @@ In the tunnel config UI, add these public hostnames:
 | `bot.getouch.co` | HTTP | `caddy:80` |
 | `wa.getouch.co` | HTTP | `caddy:80` |
 | `api.getouch.co` | HTTP | `caddy:80` |
+| `db.getouch.co` | HTTP | `caddy:80` |
+| `grafana.getouch.co` | HTTP | `caddy:80` |
+| `metrics.getouch.co` | HTTP | `caddy:80` |
+| `coolify.getouch.co` | HTTP | `caddy:80` |
 
 Cloudflare will auto-create CNAME DNS records pointing to the tunnel.
+
+> **⚠️ IMPORTANT**: If `grafana.getouch.co` or `metrics.getouch.co` show `ERR_NAME_NOT_RESOLVED`,
+> it means the public hostname was not added to the tunnel. Go to Zero Trust → Networks → Tunnels →
+> getouch-home → Public Hostname tab and add the missing entries.
 
 ## Step 3 — Add cloudflared to Docker Compose
 

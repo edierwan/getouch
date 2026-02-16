@@ -84,3 +84,9 @@ metrics.getouch.co:80 {
 	import admin_csp
 	reverse_proxy prometheus:9090
 }
+
+# ── Coolify — Cloudflare Access protected ─────────────────────────
+coolify.getouch.co:80 {
+	import security_headers
+	reverse_proxy 127.0.0.1:8000
+}

@@ -398,11 +398,105 @@ const landingHtml = `<!DOCTYPE html>
    ADMIN — data stores & Cloudflare Email Routing integration
    ================================================================ */
 const https = require('https');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const CF_TOKEN     = process.env.CLOUDFLARE_API_TOKEN || '';
 const CF_ZONE      = process.env.CLOUDFLARE_ZONE_ID   || '';
 const CF_ACCOUNT   = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const EMAIL_DOMAIN = process.env.EMAIL_DOMAIN || 'getouch.co';
+
+// ── SMTP config for sending verification emails ──
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_USER = process.env.SMTP_USER || '';        // e.g. edi.erwan@gmail.com
+const SMTP_PASS = process.env.SMTP_PASS || '';        // Gmail App Password
+const SMTP_FROM = process.env.SMTP_FROM || 'noreply@' + EMAIL_DOMAIN;
+const VERIFY_SECRET = process.env.VERIFY_SECRET || 'getouch-verify-' + Date.now();
+const PUBLIC_URL = process.env.PUBLIC_URL || 'https://getouch.co';
+
+// ── Nodemailer transporter ──
+var smtpTransporter = null;
+if (SMTP_USER && SMTP_PASS) {
+  smtpTransporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+  smtpTransporter.verify().then(function() {
+    console.log('[email] SMTP transporter ready (' + SMTP_HOST + ')');
+  }).catch(function(err) {
+    console.error('[email] SMTP transporter verification failed:', err.message);
+  });
+} else {
+  console.log('[email] SMTP not configured (set SMTP_USER + SMTP_PASS). Verification emails will not be sent.');
+}
+
+// ── Token generation/verification for email verification links ──
+function generateVerifyToken(email) {
+  var payload = JSON.stringify({ email: email, exp: Date.now() + 72 * 3600 * 1000 }); // 72h expiry
+  var hmac = crypto.createHmac('sha256', VERIFY_SECRET).update(payload).digest('hex');
+  var token = Buffer.from(payload).toString('base64url') + '.' + hmac;
+  return token;
+}
+
+function verifyToken(token) {
+  try {
+    var parts = token.split('.');
+    if (parts.length !== 2) return null;
+    var payload = Buffer.from(parts[0], 'base64url').toString();
+    var hmac = crypto.createHmac('sha256', VERIFY_SECRET).update(payload).digest('hex');
+    if (hmac !== parts[1]) return null;
+    var data = JSON.parse(payload);
+    if (data.exp < Date.now()) return null;
+    return data;
+  } catch(e) { return null; }
+}
+
+// ── Send verification email ──
+async function sendVerificationEmail(destEmail, destLabel) {
+  if (!smtpTransporter) {
+    console.log('[email] SMTP not configured, skipping verification email to ' + destEmail);
+    return { sent: false, reason: 'SMTP not configured' };
+  }
+  var token = generateVerifyToken(destEmail);
+  var verifyUrl = PUBLIC_URL + '/verify-email?token=' + encodeURIComponent(token);
+  var html = '<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0b;color:#e4e4e7;padding:40px 20px">'
+    + '<div style="max-width:520px;margin:0 auto;background:#111113;border:1px solid #1e1e22;border-radius:12px;padding:32px">'
+    + '<div style="text-align:center;margin-bottom:24px"><span style="font-size:1.5rem;font-weight:700;color:#e4e4e7">ge<span style="color:#6366f1">touch</span></span></div>'
+    + '<h2 style="font-size:1.1rem;font-weight:600;margin-bottom:8px;color:#e4e4e7">Verify your email address</h2>'
+    + '<p style="font-size:0.9rem;color:#71717a;line-height:1.6;margin-bottom:20px">You (or an admin) added <strong style="color:#e4e4e7">' + destEmail + '</strong> as a forwarding destination for <strong style="color:#e4e4e7">' + EMAIL_DOMAIN + '</strong> email routing.</p>'
+    + '<p style="font-size:0.9rem;color:#71717a;line-height:1.6;margin-bottom:24px">Please click the button below to verify this email address:</p>'
+    + '<div style="text-align:center;margin-bottom:24px"><a href="' + verifyUrl + '" style="display:inline-block;padding:12px 32px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:0.9rem">Verify Email Address</a></div>'
+    + '<p style="font-size:0.75rem;color:#52525b;line-height:1.5">Or copy and paste this URL into your browser:</p>'
+    + '<p style="font-size:0.72rem;color:#818cf8;word-break:break-all;background:#0a0a0b;padding:10px;border-radius:6px;border:1px solid #1e1e22">' + verifyUrl + '</p>'
+    + '<p style="font-size:0.72rem;color:#52525b;margin-top:20px;line-height:1.5">This link expires in 72 hours. If you did not request this, you can safely ignore this email.</p>'
+    + '<hr style="border:none;border-top:1px solid #1e1e22;margin:20px 0">'
+    + '<p style="font-size:0.65rem;color:#52525b;text-align:center">Sent by Getouch Platform &mdash; ' + EMAIL_DOMAIN + '</p>'
+    + '</div></body></html>';
+
+  var text = 'Verify your email address for ' + EMAIL_DOMAIN + ' email routing.\n\n'
+    + 'Click this link to verify: ' + verifyUrl + '\n\n'
+    + 'This link expires in 72 hours.\n\n'
+    + 'If you did not request this, ignore this email.\n'
+    + '— Getouch Platform';
+
+  try {
+    await smtpTransporter.sendMail({
+      from: '"Getouch Platform" <' + SMTP_FROM + '>',
+      to: destEmail,
+      subject: 'Verify your email — ' + EMAIL_DOMAIN,
+      text: text,
+      html: html,
+    });
+    console.log('[email] Verification email sent to ' + destEmail);
+    return { sent: true };
+  } catch(e) {
+    console.error('[email] Failed to send verification email to ' + destEmail + ':', e.message);
+    return { sent: false, reason: e.message };
+  }
+}
 
 // ── Email destinations (with cf_destination_id for verification tracking) ──
 var emailDestinations = [
@@ -731,11 +825,19 @@ a{color:var(--al);text-decoration:none}a:hover{text-decoration:underline}
   <div class="section">
     <div class="st" style="margin-bottom:10px">Quick Access</div>
     <div class="g4">
-      <a href="https://db.getouch.co" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--bd);display:flex;align-items:center;justify-content:center">&#128451;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">pgAdmin</div><div style="font-size:.6rem;color:var(--tm)">db.getouch.co</div></div></div></a>
-      <a href="https://grafana.getouch.co" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--gd);display:flex;align-items:center;justify-content:center">&#128200;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Grafana</div><div style="font-size:.6rem;color:var(--tm)">grafana.getouch.co</div></div></div></a>
-      <a href="https://dash.cloudflare.com" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--od);display:flex;align-items:center;justify-content:center">&#9729;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Cloudflare</div><div style="font-size:.6rem;color:var(--tm)">DNS + Tunnel</div></div></div></a>
-      <a href="https://bot.getouch.co/health" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--pd);display:flex;align-items:center;justify-content:center">&#9829;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Health API</div><div style="font-size:.6rem;color:var(--tm)">All endpoints</div></div></div></a>
+      <a href="https://db.getouch.co" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--bd);display:flex;align-items:center;justify-content:center">&#128451;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">pgAdmin</div><div style="font-size:.6rem;color:var(--tm)">db.getouch.co</div><div style="font-size:.54rem;color:var(--td);margin-top:2px">&#128274; CF Access + pgAdmin login</div></div></div></a>
+      <a href="https://grafana.getouch.co" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--gd);display:flex;align-items:center;justify-content:center">&#128200;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Grafana</div><div style="font-size:.6rem;color:var(--tm)">grafana.getouch.co</div><div style="font-size:.54rem;color:var(--td);margin-top:2px">&#128274; CF Access SSO (auto-login)</div></div></div></a>
+      <a href="https://metrics.getouch.co" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--od);display:flex;align-items:center;justify-content:center">&#128201;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Prometheus</div><div style="font-size:.6rem;color:var(--tm)">metrics.getouch.co</div><div style="font-size:.54rem;color:var(--td);margin-top:2px">&#128274; CF Access (no tool login)</div></div></div></a>
+      <a href="https://coolify.getouch.co" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--pd);display:flex;align-items:center;justify-content:center">&#128640;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Coolify</div><div style="font-size:.6rem;color:var(--tm)">coolify.getouch.co</div><div style="font-size:.54rem;color:var(--td);margin-top:2px">&#128274; CF Access + Coolify login</div></div></div></a>
+      <a href="https://dash.cloudflare.com" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--yd);display:flex;align-items:center;justify-content:center">&#9729;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Cloudflare</div><div style="font-size:.6rem;color:var(--tm)">DNS + Tunnel + Access</div></div></div></a>
+      <a href="https://bot.getouch.co/health" target="_blank" class="card link-card" style="text-decoration:none"><div class="cb" style="display:flex;align-items:center;gap:8px;padding:10px 12px"><div style="width:28px;height:28px;border-radius:7px;background:var(--ag);display:flex;align-items:center;justify-content:center">&#9829;</div><div><div style="font-size:.75rem;font-weight:600;color:var(--text)">Health API</div><div style="font-size:.6rem;color:var(--tm)">All endpoints</div></div></div></a>
     </div>
+
+  <!-- One Gate Note -->
+  <div class="card" style="margin-top:12px"><div class="cb" style="padding:10px 14px">
+    <div style="font-size:.72rem;font-weight:600;margin-bottom:4px">&#128274; One Gate Access</div>
+    <div style="font-size:.66rem;color:var(--tm);line-height:1.6">All tools are protected by <b style="color:var(--text)">Cloudflare Access (Google SSO)</b>. Once authenticated on any getouch.co subdomain, you won&#39;t be prompted again for others. Some tools (pgAdmin, Coolify) still require their own local login after the Access gate.</div>
+  </div></div>
   </div>
   <div class="section">
     <div class="st" style="margin-bottom:10px">Recent Activity</div>
@@ -754,6 +856,17 @@ a{color:var(--al);text-decoration:none}a:hover{text-decoration:underline}
       <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--bd)">&#127968;</div><div><div class="svc-t">Landing Page</div><span class="tag green">Active</span></div></div><div class="svc-d">Public-facing chat interface. Visitors interact with AI directly.</div><div class="svc-f"><span class="tag muted">getouch.co</span><div style="display:flex;gap:5px"><a href="/health" target="_blank" class="btn btn-sm btn-g">Health</a><a href="/" target="_blank" class="btn btn-sm btn-o">Open &#8599;</a></div></div></div></div>
       <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--od)">&#129504;</div><div><div class="svc-t">Ollama (AI Engine)</div><span class="tag green">Running</span></div></div><div class="svc-d">On-premises LLM inference with GPU. Model: llama3.1:8b.</div><div class="svc-f"><span class="tag muted">Internal :11434</span><span class="tag purple">GPU Accelerated</span></div></div></div>
       <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--ag)">&#9729;</div><div><div class="svc-t">Cloudflare Tunnel</div><span class="tag green">Active</span></div></div><div class="svc-d">Zero-trust ingress. All traffic via Cloudflare edge.</div><div class="svc-f"><span class="tag muted">cloudflared</span><a href="https://dash.cloudflare.com" target="_blank" class="btn btn-sm btn-o">Dashboard &#8599;</a></div></div></div>
+    </div>
+  </div>
+
+  <!-- Infrastructure Tools (One Gate) -->
+  <div class="section">
+    <div class="sh"><div class="st">Infrastructure Tools <span style="font-size:.65rem;font-weight:400;color:var(--tm)">(One Gate — CF Access)</span></div><button class="btn btn-sm btn-g" onclick="refreshOpsStatus()">&#128259; Refresh Status</button></div>
+    <div class="g2" id="infra-tools-grid">
+      <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--gd)">&#128200;</div><div><div class="svc-t">Grafana</div><span class="tag" id="ops-grafana">Checking...</span></div></div><div class="svc-d">Dashboards for system resources, container stats, request latencies, and error rates.</div><div class="svc-f"><span class="tag muted">grafana.getouch.co</span><div style="display:flex;gap:5px"><a href="https://grafana.getouch.co" target="_blank" class="btn btn-sm btn-o">Open &#8599;</a></div></div></div></div>
+      <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--od)">&#128201;</div><div><div class="svc-t">Prometheus</div><span class="tag" id="ops-prometheus">Checking...</span></div></div><div class="svc-d">Time-series metrics store. 30-day retention, 15s scrape interval. Query via PromQL.</div><div class="svc-f"><span class="tag muted">metrics.getouch.co</span><div style="display:flex;gap:5px"><a href="https://metrics.getouch.co" target="_blank" class="btn btn-sm btn-o">Open &#8599;</a></div></div></div></div>
+      <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--bd)">&#128451;</div><div><div class="svc-t">pgAdmin</div><span class="tag" id="ops-pgadmin">Checking...</span></div></div><div class="svc-d">Database management UI. Browse tables, run queries, manage schemas across all databases.</div><div class="svc-f"><span class="tag muted">db.getouch.co</span><div style="display:flex;gap:5px"><a href="https://db.getouch.co" target="_blank" class="btn btn-sm btn-o">Open &#8599;</a></div></div></div></div>
+      <div class="card svc"><div class="cb"><div class="svc-h"><div class="svc-i" style="background:var(--pd)">&#128640;</div><div><div class="svc-t">Coolify</div><span class="tag" id="ops-coolify">Checking...</span></div></div><div class="svc-d">Self-hosted PaaS for deploying apps. CI/CD pipelines, environment management.</div><div class="svc-f"><span class="tag muted">coolify.getouch.co</span><div style="display:flex;gap:5px"><a href="https://coolify.getouch.co" target="_blank" class="btn btn-sm btn-o">Open &#8599;</a></div></div></div></div>
     </div>
   </div>
 </div>
@@ -871,9 +984,9 @@ docker exec postgres psql -U getouch -c "SELECT datname, pg_size_pretty(pg_datab
         <button class="btn btn-sm btn-p" onclick="showAddDest()">+ Add Destination</button>
       </div>
     </div>
-    <div id="destAlert" class="alert info">Verification email sent! Check the inbox and click the link from Cloudflare to verify.</div>
+    <div id="destAlert" class="alert info">Verification email sent from noreply@getouch.co! Check the inbox and click the link to verify.</div>
     <div class="card"><div class="cb" style="padding:0"><table class="dt"><thead><tr><th>Label</th><th>Email</th><th>CF Status</th><th style="width:120px">Actions</th></tr></thead><tbody id="destBody"><tr><td colspan="4" style="text-align:center;color:var(--td);padding:16px"><span class="skeleton" style="width:100px"></span></td></tr></tbody></table></div></div>
-    <p style="font-size:.62rem;color:var(--td);margin-top:6px">&#9432; Cloudflare requires destination addresses to be verified before email routing works. After adding, check the inbox for a verification link.</p>
+    <p style="font-size:.62rem;color:var(--td);margin-top:6px">&#9432; When you add a destination, a verification email is sent from noreply@getouch.co. The recipient must click the link to confirm. Cloudflare also sends its own verification if CF API is configured.</p>
   </div>
 
   <!-- Aliases section -->
@@ -962,6 +1075,8 @@ docker exec postgres psql -U getouch -c "SELECT datname, pg_size_pretty(pg_datab
         <div class="ir"><span class="ik">SATA (/data)</span><span class="iv">938 GB</span></div>
         <div class="ir"><span class="ik">Prometheus</span><span class="iv">/data/prometheus</span></div>
         <div class="ir"><span class="ik">Grafana</span><span class="iv">/data/grafana</span></div>
+        <div class="ir"><span class="ik">Coolify</span><span class="iv">/data/coolify</span></div>
+        <div class="ir"><span class="ik">Postgres STG</span><span class="iv">/data/postgres-ssd</span></div>
       </div></div>
       <div class="card"><div class="cb">
         <div style="font-size:.8rem;font-weight:600;margin-bottom:7px">&#128274; Security</div>
@@ -974,7 +1089,7 @@ docker exec postgres psql -U getouch -c "SELECT datname, pg_size_pretty(pg_datab
         <div style="font-size:.8rem;font-weight:600;margin-bottom:7px">&#127760; Networking</div>
         <div class="ir"><span class="ik">Tailscale</span><span class="iv">100.103.248.15</span></div>
         <div class="ir"><span class="ik">Domain</span><span class="iv">getouch.co</span></div>
-        <div class="ir"><span class="ik">Subdomains</span><span class="iv">bot, wa, api, db, grafana, metrics</span></div>
+        <div class="ir"><span class="ik">Subdomains</span><span class="iv">bot, wa, api, db, grafana, metrics, coolify</span></div>
         <div class="ir"><span class="ik">CF Tunnel</span><span class="iv" style="color:var(--green)">Active</span></div>
       </div></div>
     </div>
@@ -995,6 +1110,8 @@ docker exec postgres psql -U getouch -c "SELECT datname, pg_size_pretty(pg_datab
       <tr><td style="font-family:var(--mono);font-weight:600">grafana</td><td style="color:var(--tm)">mon</td><td style="font-family:var(--mono)">3001</td><td><span class="tag green">&#9679; Running</span></td></tr>
       <tr><td style="font-family:var(--mono);font-weight:600">node-exporter</td><td style="color:var(--tm)">mon</td><td style="font-family:var(--mono)">9100</td><td><span class="tag green">&#9679; Running</span></td></tr>
       <tr><td style="font-family:var(--mono);font-weight:600">cadvisor</td><td style="color:var(--tm)">mon</td><td style="font-family:var(--mono)">8080</td><td><span class="tag green">&#9679; Running</span></td></tr>
+      <tr><td style="font-family:var(--mono);font-weight:600">coolify</td><td style="color:var(--tm)">coolify</td><td style="font-family:var(--mono)">8000</td><td><span class="tag yellow">&#9679; Planned</span></td></tr>
+      <tr><td style="font-family:var(--mono);font-weight:600">postgres-ssd</td><td style="color:var(--tm)">db-staging</td><td style="font-family:var(--mono)">5433</td><td><span class="tag yellow">&#9679; Planned</span></td></tr>
     </tbody></table></div></div>
   </div>
   <div class="section">
@@ -1054,7 +1171,7 @@ docker compose -f docker-compose.apps.yml up -d landing</div></div></div>
 <div class="overlay" id="destOverlay">
   <div class="modal">
     <h3>Add Email Destination</h3>
-    <div class="desc">Add a forwarding Gmail address. Cloudflare will send a verification email that must be confirmed before routing works.</div>
+    <div class="desc">Add a forwarding email address. A verification email will be sent from noreply@getouch.co that must be confirmed before routing works.</div>
     <div class="fg" style="margin-bottom:10px"><label>Label</label><input type="text" id="destLabel" placeholder="e.g. Rahim Gmail"></div>
     <div class="fg" style="margin-bottom:10px"><label>Email Address</label><input type="email" id="destEmail" placeholder="e.g. rahim@gmail.com"></div>
     <div id="addDestError" class="alert err" style="margin-bottom:0"></div>
@@ -1162,6 +1279,27 @@ function updateStats(){
   else{bh.innerHTML='<span style="color:var(--yellow)">&#9679;</span> '+onlineCount+'/'+healthSvcs.length+' services online';bh.style.color='var(--yellow)'}
 }
 
+/* ── Ops Status (Infrastructure Tools) ── */
+function refreshOpsStatus(){
+  ['grafana','prometheus','pgadmin','coolify'].forEach(function(t){
+    var el=document.getElementById('ops-'+t);
+    if(el){el.className='tag yellow';el.textContent='Checking...';}
+  });
+  fetch('/api/ops/status').then(function(r){return r.json()}).then(function(data){
+    data.forEach(function(s){
+      var el=document.getElementById('ops-'+s.name);
+      if(!el)return;
+      if(s.up){el.className='tag green';el.textContent='Online \\u00b7 '+s.latency_ms+'ms';}
+      else{el.className='tag red';el.textContent='Unreachable';}
+    });
+  }).catch(function(){
+    ['grafana','prometheus','pgadmin','coolify'].forEach(function(t){
+      var el=document.getElementById('ops-'+t);
+      if(el){el.className='tag muted';el.textContent='Unknown';}
+    });
+  });
+}
+
 /* ══════ Destinations ══════ */
 function loadDests(){
   fetch('/api/admin/email/destinations').then(function(r){return r.json()}).then(function(data){
@@ -1226,10 +1364,16 @@ function addDest(){
       if(!res.ok){errEl.textContent=res.data.error||'Failed';errEl.classList.add('show');return}
       document.getElementById('destOverlay').classList.remove('show');
       var alert=document.getElementById('destAlert');
-      alert.innerHTML='&#9993; Verification email sent to <b>'+email+'</b>! Check the inbox and click the link from Cloudflare. Then click "Refresh Verification" here.';
-      alert.classList.add('show');
+      var emailSent = res.data.emailSent;
+      if (emailSent) {
+        alert.className='alert info show';
+        alert.innerHTML='&#9993; Verification email sent to <b>'+email+'</b> from <b>noreply@getouch.co</b>! Check the inbox and click the verification link. Then click "Refresh Verification" here.';
+      } else {
+        alert.className='alert warn show';
+        alert.innerHTML='&#9888; Destination added but verification email could not be sent. Configure SMTP credentials or click "Resend" once SMTP is ready.';
+      }
       setTimeout(function(){alert.classList.remove('show')},15000);
-      showToast('Destination added. Verification email sent!','success');
+      showToast(emailSent ? 'Destination added. Verification email sent!' : 'Destination added. Email not sent (check SMTP config).', emailSent ? 'success' : 'error');
       loadDests();loadActivity();
     }).catch(function(){btn.classList.remove('loading');errEl.textContent='Request failed';errEl.classList.add('show')});
 }
@@ -1470,6 +1614,7 @@ document.querySelectorAll('.overlay').forEach(function(o){o.addEventListener('cl
 
 /* ── Init ── */
 checkAllHealth();
+refreshOpsStatus();
 loadDests();
 loadAliases();
 loadActivity();
@@ -1515,6 +1660,90 @@ const server = http.createServer(async function(req, res) {
   }
 
   // ══════════════════════════════════════════════════
+  // OPS STATUS CHECK API — server-side probes
+  // ══════════════════════════════════════════════════
+  // Cache probe results for 15s to avoid hammering internal services
+  var _opsCache = {};
+
+  if (url === '/api/ops/check' && method === 'GET') {
+    var target = query.target;
+    if (!target) return json(400, { error: 'target query param required' });
+
+    var TARGETS = {
+      grafana:    { url: 'http://grafana:3000/api/health', name: 'Grafana' },
+      prometheus: { url: 'http://prometheus:9090/-/healthy', name: 'Prometheus' },
+      pgadmin:    { url: 'http://pgadmin:5050/misc/ping', name: 'pgAdmin' },
+      coolify:    { url: 'http://127.0.0.1:8000/api/health', name: 'Coolify' },
+      caddy:      { url: 'http://caddy:80/', name: 'Caddy' },
+    };
+
+    var tgt = TARGETS[target];
+    if (!tgt) return json(400, { error: 'Unknown target. Valid: ' + Object.keys(TARGETS).join(', ') });
+
+    // Check cache
+    var cached = _opsCache[target];
+    if (cached && (Date.now() - cached.checked_at_ms) < 15000) {
+      return json(200, cached);
+    }
+
+    var t0 = Date.now();
+    try {
+      var controller = new AbortController();
+      var timeout = setTimeout(function() { controller.abort(); }, 5000);
+      var probeRes = await fetch(tgt.url, { signal: controller.signal });
+      clearTimeout(timeout);
+      var result = {
+        name: tgt.name,
+        up: probeRes.ok,
+        status_code: probeRes.status,
+        latency_ms: Date.now() - t0,
+        checked_at: new Date().toISOString(),
+        checked_at_ms: Date.now()
+      };
+      _opsCache[target] = result;
+      return json(200, result);
+    } catch(e) {
+      var result = {
+        name: tgt.name,
+        up: false,
+        status_code: 0,
+        latency_ms: Date.now() - t0,
+        error: e.name === 'AbortError' ? 'timeout' : e.message,
+        checked_at: new Date().toISOString(),
+        checked_at_ms: Date.now()
+      };
+      _opsCache[target] = result;
+      return json(200, result);
+    }
+  }
+
+  // Batch ops status check — probe all internal tools at once
+  if (url === '/api/ops/status' && method === 'GET') {
+    var TARGETS = {
+      grafana:    'http://grafana:3000/api/health',
+      prometheus: 'http://prometheus:9090/-/healthy',
+      pgadmin:    'http://pgadmin:5050/misc/ping',
+      coolify:    'http://127.0.0.1:8000/api/health',
+    };
+    var results = {};
+    var probeAll = Object.entries(TARGETS).map(async function(pair) {
+      var name = pair[0], probeUrl = pair[1];
+      var t0 = Date.now();
+      try {
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, 3000);
+        var r = await fetch(probeUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        results[name] = { up: r.ok, status_code: r.status, latency_ms: Date.now() - t0 };
+      } catch(e) {
+        results[name] = { up: false, latency_ms: Date.now() - t0, error: e.name === 'AbortError' ? 'timeout' : 'unreachable' };
+      }
+    });
+    await Promise.all(probeAll);
+    return json(200, { tools: results, checked_at: new Date().toISOString() });
+  }
+
+  // ══════════════════════════════════════════════════
   // EMAIL DESTINATIONS API
   // ══════════════════════════════════════════════════
 
@@ -1523,7 +1752,7 @@ const server = http.createServer(async function(req, res) {
     return json(200, emailDestinations);
   }
 
-  // POST /api/admin/email/destinations — create + send CF verification
+  // POST /api/admin/email/destinations — create + send CF verification + our own email
   if (url === '/api/admin/email/destinations' && method === 'POST') {
     try {
       var d = await parseBody(req);
@@ -1541,11 +1770,8 @@ const server = http.createServer(async function(req, res) {
           if (cfRes.success && cfRes.result) {
             nd.cfDestinationId = cfRes.result.id;
             nd.verified = cfRes.result.verified ? true : false;
-            logActivity('email.dest.add', 'Added destination via CF API: ' + d.label + ' (' + d.email + '). Verification email sent.');
           } else {
-            // CF returned error — might be duplicate or invalid
             var cfErr = (cfRes.errors && cfRes.errors[0] && cfRes.errors[0].message) || 'Unknown Cloudflare error';
-            // If already exists on CF side, still add locally
             if (cfErr.indexOf('already') > -1 || cfErr.indexOf('exist') > -1) {
               logActivity('email.dest.add', 'Added destination locally (already exists in CF): ' + d.email);
             } else {
@@ -1555,12 +1781,25 @@ const server = http.createServer(async function(req, res) {
         } catch(cfE) {
           logActivity('email.dest.add.warn', 'CF API call failed: ' + cfE.message + '. Added locally.');
         }
-      } else {
-        logActivity('email.dest.add', 'Added destination (stub mode): ' + d.label + ' (' + d.email + ')');
       }
 
       emailDestinations.push(nd);
-      return json(201, { destination: nd, message: 'Destination added. Verification email sent to ' + d.email + '. Check inbox and click the Cloudflare verification link.' });
+
+      // Send our own verification email via SMTP
+      var emailResult = await sendVerificationEmail(d.email, d.label);
+      if (emailResult.sent) {
+        logActivity('email.dest.add', 'Added destination: ' + d.label + ' (' + d.email + '). Verification email sent from ' + SMTP_FROM);
+      } else {
+        logActivity('email.dest.add', 'Added destination: ' + d.label + ' (' + d.email + '). SMTP: ' + (emailResult.reason || 'not configured'));
+      }
+
+      return json(201, {
+        destination: nd,
+        emailSent: emailResult.sent,
+        message: emailResult.sent
+          ? 'Destination added. Verification email sent to ' + d.email + ' from ' + SMTP_FROM + '. Check inbox and click the verification link.'
+          : 'Destination added. Verification email could not be sent (' + (emailResult.reason || 'SMTP not configured') + '). Configure SMTP or verify manually.'
+      });
     } catch(e) { return json(400, { error: 'Invalid request body' }); }
   }
 
@@ -1571,9 +1810,9 @@ const server = http.createServer(async function(req, res) {
     if (!dest) return json(404, { error: 'Destination not found' });
     if (dest.verified) return json(400, { error: 'Already verified' });
 
+    // Also re-trigger Cloudflare verification if configured
     if (CF_TOKEN && CF_ACCOUNT) {
       try {
-        // Delete and re-create to resend verification
         if (dest.cfDestinationId) {
           await cfAccountRequest('DELETE', '/email/routing/addresses/' + dest.cfDestinationId);
         }
@@ -1582,15 +1821,26 @@ const server = http.createServer(async function(req, res) {
           dest.cfDestinationId = cfRes.result.id;
           dest.updatedAt = new Date().toISOString();
         }
-        logActivity('email.dest.resend', 'Resent verification to ' + dest.email);
       } catch(e) {
-        logActivity('email.dest.resend.error', 'Failed to resend: ' + e.message);
-        return json(500, { error: 'Failed to resend: ' + e.message });
+        // CF resend failure is non-blocking — we still send our own email
+        logActivity('email.dest.resend.warn', 'CF resend failed: ' + e.message + ', sending our own email.');
       }
-    } else {
-      logActivity('email.dest.resend', 'Resend verification (stub mode): ' + dest.email);
     }
-    return json(200, { ok: true, message: 'Verification email resent to ' + dest.email });
+
+    // Send our own verification email
+    var emailResult = await sendVerificationEmail(dest.email, dest.label);
+    if (emailResult.sent) {
+      logActivity('email.dest.resend', 'Resent verification email to ' + dest.email + ' from ' + SMTP_FROM);
+    } else {
+      logActivity('email.dest.resend', 'Resend attempted for ' + dest.email + '. SMTP: ' + (emailResult.reason || 'not configured'));
+    }
+    return json(200, {
+      ok: true,
+      emailSent: emailResult.sent,
+      message: emailResult.sent
+        ? 'Verification email resent to ' + dest.email + ' from ' + SMTP_FROM
+        : 'Resend attempted but email could not be sent (' + (emailResult.reason || 'SMTP not configured') + ')'
+    });
   }
 
   // POST /api/admin/email/destinations/refresh — refresh verification statuses from CF
@@ -1867,9 +2117,52 @@ const server = http.createServer(async function(req, res) {
       aliases: emailAliases.length,
       destinations: emailDestinations.length,
       cfConfigured: !!(CF_TOKEN && CF_ZONE),
+      smtpConfigured: !!smtpTransporter,
       lastSync: lastGlobalSync,
       timestamp: new Date().toISOString()
     });
+  }
+
+  // ── Email Verification Link Handler ──
+  if (url === '/verify-email' && method === 'GET' && query.token) {
+    var tokenData = verifyToken(query.token);
+    if (!tokenData) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end('<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;background:#0a0a0b;color:#e4e4e7;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">'
+        + '<div style="text-align:center;max-width:440px;padding:32px">'
+        + '<div style="font-size:2.5rem;margin-bottom:16px">&#10060;</div>'
+        + '<h1 style="font-size:1.3rem;margin-bottom:12px;color:#ef4444">Verification Failed</h1>'
+        + '<p style="color:#71717a;line-height:1.6">This verification link is invalid or has expired. Please request a new verification email from the admin dashboard.</p>'
+        + '<a href="/admin/" style="display:inline-block;margin-top:20px;padding:10px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Go to Admin</a>'
+        + '</div></body></html>');
+    }
+
+    var verifiedEmail = tokenData.email;
+    var dest = emailDestinations.find(function(d) { return d.email === verifiedEmail; });
+    if (dest) {
+      dest.verified = true;
+      dest.updatedAt = new Date().toISOString();
+      logActivity('email.dest.verified', 'Email verified via link: ' + verifiedEmail, 'user');
+
+      // Also unblock any aliases pointing to this destination
+      emailAliases.forEach(function(a) {
+        if (a.destinationId === dest.id && a.syncStatus === 'blocked') {
+          a.syncStatus = 'pending';
+          a.lastError = null;
+        }
+      });
+    }
+
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end('<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;background:#0a0a0b;color:#e4e4e7;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">'
+      + '<div style="text-align:center;max-width:440px;padding:32px">'
+      + '<div style="font-size:2.5rem;margin-bottom:16px">&#9989;</div>'
+      + '<h1 style="font-size:1.3rem;margin-bottom:12px;color:#22c55e">Email Verified!</h1>'
+      + '<p style="color:#71717a;line-height:1.6"><strong style="color:#e4e4e7">' + verifiedEmail + '</strong> has been verified as a forwarding destination for <strong style="color:#e4e4e7">' + EMAIL_DOMAIN + '</strong>.</p>'
+      + '<p style="color:#71717a;line-height:1.6;margin-top:12px">You can now close this tab. The admin dashboard will reflect the updated status.</p>'
+      + '<a href="/admin/" style="display:inline-block;margin-top:20px;padding:10px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Go to Admin</a>'
+      + '</div></body></html>');
+    return;
   }
 
   // ── Admin pages ──
