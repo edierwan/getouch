@@ -18,8 +18,16 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Kuala_Lumpur
-      # Coolify needs access to Docker socket to manage containers
-      # It will manage its own internal DB (SQLite or PostgreSQL)
+      # Database connection (coolify-db runs on getouch_app network)
+      DB_HOST: coolify-db
+      DB_PORT: "5432"
+      DB_DATABASE: coolify
+      DB_USERNAME: coolify
+      DB_PASSWORD: coolify
+      # Redis connection (coolify-redis on same network)
+      REDIS_HOST: coolify-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
     volumes:
       - /data/coolify:/data/coolify
       - /var/run/docker.sock:/var/run/docker.sock:ro
