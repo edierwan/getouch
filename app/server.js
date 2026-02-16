@@ -25,9 +25,15 @@ const VERSION = process.env.VERSION || '1.0.0';
 const isDev   = process.env.NODE_ENV !== 'production';
 
 const INTERNAL = {
-  bot: process.env.BOT_INTERNAL_URL || 'http://bot:3000',
-  wa:  process.env.WA_INTERNAL_URL  || 'http://wa:3000',
-  api: process.env.API_INTERNAL_URL || 'http://api:3000',
+  bot:     process.env.BOT_INTERNAL_URL     || 'http://bot:3000',
+  wa:      process.env.WA_INTERNAL_URL      || 'http://wa:3000',
+  api:     process.env.API_INTERNAL_URL     || 'http://api:3000',
+};
+
+/* AI-infrastructure endpoints (different health paths) */
+const AI_PROBES = {
+  ollama:  { url: `http://${process.env.OLLAMA_HOST  || 'ollama'}:${process.env.OLLAMA_PORT  || '11434'}`, health: '/' },
+  comfyui: { url: `http://${process.env.COMFYUI_HOST || 'comfyui'}:${process.env.COMFYUI_PORT || '8188'}`, health: '/system_stats' },
 };
 
 const VARS = {
@@ -160,7 +166,22 @@ app.get('/api/status', async (_req, res) => {
     }
   });
 
-  const results  = await Promise.all(probes);
+  /* AI infrastructure probes (Ollama, ComfyUI) */
+  const aiProbes = Object.entries(AI_PROBES).map(async ([name, cfg]) => {
+    const t0 = Date.now();
+    try {
+      const ac = new AbortController();
+      const tm = setTimeout(() => ac.abort(), 3000);
+      const r  = await fetch(`${cfg.url}${cfg.health}`, { signal: ac.signal });
+      clearTimeout(tm);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return { name, status: 'ok', latency_ms: Date.now() - t0 };
+    } catch {
+      return { name, status: 'offline', latency_ms: Date.now() - t0 };
+    }
+  });
+
+  const results  = await Promise.all([...probes, ...aiProbes]);
   const services = {};
   for (const r of results) services[r.name] = r;
   res.json({ services, timestamp: new Date().toISOString() });

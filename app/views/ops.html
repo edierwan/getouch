@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getouch — Operations Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- ─── Navigation ──────────────────────────────────── -->
+    <nav class="admin-nav">
+      <div class="admin-nav__logo">ge<span>touch</span> admin</div>
+      <a href="/admin/" class="admin-nav__link">Dashboard</a>
+      <a href="/admin/ops" class="admin-nav__link active">Ops Dashboard</a>
+      <a href="/" class="admin-nav__link">← Home</a>
+    </nav>
+
+    <!-- ─── Content ─────────────────────────────────────── -->
+    <div class="admin-content">
+      <h1 class="admin-content__title">Operations Dashboard</h1>
+      <p class="admin-content__subtitle">Quick access to all platform services and tools</p>
+
+      <!-- ── WhatsApp ───────────────────────────────────── -->
+      <div class="ops-section" id="whatsapp">
+        <h2 class="ops-section__title">💬 WhatsApp Gateway</h2>
+        <div class="ops-card">
+          <div class="ops-links">
+            <a href="{{WA_URL}}/health" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">Health Check</span>
+              <span class="ops-link__url">{{WA_URL}}/health</span>
+            </a>
+            <a href="{{WA_URL}}/api/internal/wa/status" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">Session Status</span>
+              <span class="ops-link__url">{{WA_URL}}/api/internal/wa/status</span>
+              <span class="badge badge--access">Admin&nbsp;only</span>
+            </a>
+            <a href="{{WA_URL}}/api/internal/wa/qr" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">QR Code Login</span>
+              <span class="ops-link__url">{{WA_URL}}/api/internal/wa/qr</span>
+              <span class="badge badge--access">Admin&nbsp;only</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Bot / AI ───────────────────────────────────── -->
+      <div class="ops-section" id="bot">
+        <h2 class="ops-section__title">🤖 Bot / AI Service</h2>
+        <div class="ops-card">
+          <div class="ops-links">
+            <a href="{{BOT_URL}}/health" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">Health Check</span>
+              <span class="ops-link__url">{{BOT_URL}}/health</span>
+            </a>
+            <a href="{{BOT_URL}}/api/internal/ai/chat" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">AI Chat (Internal)</span>
+              <span class="ops-link__url">{{BOT_URL}}/api/internal/ai/chat</span>
+              <span class="badge badge--access">Admin&nbsp;only</span>
+            </a>
+            <div class="ops-link ops-link--static">
+              <span class="ops-link__label">Public Chat API</span>
+              <span class="ops-link__url">{{BOT_URL}}/v1/chat</span>
+              <span class="badge badge--tailscale">Token Required</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Database ───────────────────────────────────── -->
+      <div class="ops-section" id="database">
+        <h2 class="ops-section__title">🗄️ Database</h2>
+        <div class="ops-card">
+          <div class="ops-links">
+            <a href="{{DB_URL}}" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">pgAdmin</span>
+              <span class="ops-link__url">{{DB_URL}}</span>
+              <span class="badge badge--access">Admin&nbsp;only</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Observability ──────────────────────────────── -->
+      <div class="ops-section" id="observability">
+        <h2 class="ops-section__title">📊 Observability</h2>
+        <div class="ops-card">
+          <div class="ops-links">
+            <div class="ops-link ops-link--static">
+              <span class="ops-link__label">Grafana</span>
+              <span class="ops-link__note">Tailscale&nbsp;→ port&nbsp;3001</span>
+              <span class="badge badge--tailscale">Tailscale Only</span>
+            </div>
+            <div class="ops-link ops-link--static">
+              <span class="ops-link__label">Prometheus</span>
+              <span class="ops-link__note">Tailscale&nbsp;→ port&nbsp;9090</span>
+              <span class="badge badge--tailscale">Tailscale Only</span>
+            </div>
+            <div class="ops-link ops-link--static">
+              <span class="ops-link__label">cAdvisor</span>
+              <span class="ops-link__note">Tailscale&nbsp;→ port&nbsp;8080</span>
+              <span class="badge badge--tailscale">Tailscale Only</span>
+            </div>
+            <div class="ops-link ops-link--static">
+              <span class="ops-link__label">Node Exporter</span>
+              <span class="ops-link__note">Tailscale&nbsp;→ port&nbsp;9100</span>
+              <span class="badge badge--tailscale">Tailscale Only</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── REST API ───────────────────────────────────── -->
+      <div class="ops-section" id="api">
+        <h2 class="ops-section__title">⚡ REST API</h2>
+        <div class="ops-card">
+          <div class="ops-links">
+            <a href="{{API_URL}}/health" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">Health Check</span>
+              <span class="ops-link__url">{{API_URL}}/health</span>
+            </a>
+            <a href="{{API_URL}}/version" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">Version Info</span>
+              <span class="ops-link__url">{{API_URL}}/version</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Coolify ────────────────────────────────────── -->
+      <div class="ops-section" id="coolify">
+        <h2 class="ops-section__title">🚀 Coolify</h2>
+        <div class="ops-card">
+          <div class="ops-links">
+            <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="ops-link">
+              <span class="ops-link__label">Coolify Dashboard</span>
+              <span class="ops-link__url">coolify.getouch.co</span>
+              <span class="badge badge--ok"><span class="badge__dot"></span>Active</span>
+            </a>
+          </div>
+          <div class="info-box" style="margin-top:12px">
+            <p class="info-box__text">
+              CI/CD deployment manager. Access via Cloudflare Access SSO.
+              All deployments from GitHub are managed here.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

@@ -18,6 +18,7 @@ services:
     volumes:
       - /opt/getouch/data/ollama:/root/.ollama
     networks:
+      - getouch_app
       - getouch_data
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:11434/"]
@@ -52,6 +53,7 @@ services:
       - /opt/getouch/data/comfyui/output:/opt/ComfyUI/output
       - /opt/getouch/data/images:/opt/ComfyUI/output/api
     networks:
+      - getouch_app
       - getouch_data
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8188/system_stats"]
@@ -66,5 +68,7 @@ services:
         max-file: "3"
 
 networks:
+  getouch_app:
+    external: true
   getouch_data:
     external: true

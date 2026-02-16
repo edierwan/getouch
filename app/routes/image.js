@@ -230,4 +230,16 @@ router.get('/image/:id', async (req, res) => {
   }
 });
 
+/**
+ * GET /v1/image/health — ComfyUI health check
+ */
+router.get('/image/health', async (_req, res) => {
+  const healthy = await comfyui.isHealthy();
+  res.json({
+    service: 'comfyui',
+    status: healthy ? 'ok' : 'offline',
+    endpoint: `http://${process.env.COMFYUI_HOST || 'comfyui'}:${process.env.COMFYUI_PORT || '8188'}`,
+  });
+});
+
 module.exports = router;

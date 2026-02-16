@@ -62,6 +62,24 @@
             <div class="health-item__latency" id="lat-api">…</div>
           </div>
 
+          <div class="health-item" id="health-ollama">
+            <div class="health-item__dot health-item__dot--checking"></div>
+            <div class="health-item__info">
+              <div class="health-item__name">Ollama</div>
+              <div class="health-item__url">checking…</div>
+            </div>
+            <div class="health-item__latency" id="lat-ollama">…</div>
+          </div>
+
+          <div class="health-item" id="health-comfyui">
+            <div class="health-item__dot health-item__dot--checking"></div>
+            <div class="health-item__info">
+              <div class="health-item__name">ComfyUI</div>
+              <div class="health-item__url">checking…</div>
+            </div>
+            <div class="health-item__latency" id="lat-comfyui">…</div>
+          </div>
+
         </div>
 
         <!-- Health Details Box -->
@@ -182,32 +200,32 @@
             <span class="badge badge--access">🔒 Access Required</span>
           </a>
 
-          <div class="admin-svc-card admin-svc-card--disabled">
+          <a href="https://grafana.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
             <div class="admin-svc-card__icon">📊</div>
             <div class="admin-svc-card__body">
               <h3 class="admin-svc-card__title">Grafana</h3>
               <p class="admin-svc-card__desc">Dashboards and metrics visualization</p>
             </div>
-            <span class="badge badge--tailscale">Tailscale Only</span>
-          </div>
+            <span class="badge badge--access">🔒 SSO Access</span>
+          </a>
 
-          <div class="admin-svc-card admin-svc-card--disabled">
+          <a href="https://metrics.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
             <div class="admin-svc-card__icon">📈</div>
             <div class="admin-svc-card__body">
               <h3 class="admin-svc-card__title">Prometheus</h3>
               <p class="admin-svc-card__desc">Metrics collection and alerting</p>
             </div>
-            <span class="badge badge--tailscale">Tailscale Only</span>
-          </div>
+            <span class="badge badge--access">🔒 SSO Access</span>
+          </a>
 
-          <div class="admin-svc-card admin-svc-card--disabled">
+          <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
             <div class="admin-svc-card__icon">🚀</div>
             <div class="admin-svc-card__body">
               <h3 class="admin-svc-card__title">Coolify</h3>
-              <p class="admin-svc-card__desc">CI/CD from GitHub</p>
+              <p class="admin-svc-card__desc">CI/CD &amp; deployment manager</p>
             </div>
-            <span class="badge badge--planned">Planned</span>
-          </div>
+            <span class="badge badge--access">🔒 SSO Access</span>
+          </a>
 
           <a href="/" class="admin-svc-card">
             <div class="admin-svc-card__icon">🛡️</div>
@@ -251,6 +269,20 @@
             <div class="health-item__info">
               <div class="health-item__name" style="color:var(--accent)">WA Health</div>
               <div class="health-item__url">wa.getouch.co/health</div>
+            </div>
+          </a>
+          <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
+            <div class="health-item__dot health-item__dot--ok"></div>
+            <div class="health-item__info">
+              <div class="health-item__name" style="color:var(--accent)">Coolify</div>
+              <div class="health-item__url">coolify.getouch.co · SSO Access</div>
+            </div>
+          </a>
+          <a href="https://grafana.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
+            <div class="health-item__dot health-item__dot--ok"></div>
+            <div class="health-item__info">
+              <div class="health-item__name" style="color:var(--accent)">Grafana</div>
+              <div class="health-item__url">grafana.getouch.co · SSO Access</div>
             </div>
           </a>
         </div>
