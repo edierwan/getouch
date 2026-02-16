@@ -75,9 +75,18 @@ db.getouch.co:80 {
 # ── Grafana — Cloudflare Access protected (SSO via auth proxy) ────
 grafana.getouch.co:80 {
 	import security_headers
-	reverse_proxy grafana:3000 {
-		# Pass Cloudflare Access identity header to Grafana auth proxy
-		header_up X-WEBAUTH-USER {header.Cf-Access-Authenticated-User-Email}
+
+	# Debug: visit grafana.getouch.co/_debug/headers to verify CF header
+	# REMOVE this block after confirming SSO works
+	handle /_debug/headers {
+		respond "cf_email={http.request.header.Cf-Access-Authenticated-User-Email} | cf_jwt={http.request.header.Cf-Access-Jwt-Assertion}" 200
+	}
+
+	handle {
+		reverse_proxy grafana:3000 {
+			# Copy CF Access identity into the header Grafana reads
+			header_up X-WEBAUTH-USER "{http.request.header.Cf-Access-Authenticated-User-Email}"
+		}
 	}
 }
 
