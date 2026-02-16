@@ -75,7 +75,10 @@ db.getouch.co:80 {
 # ── Grafana — Cloudflare Access protected (SSO via auth proxy) ────
 grafana.getouch.co:80 {
 	import security_headers
-	reverse_proxy grafana:3000
+	reverse_proxy grafana:3000 {
+		# Pass Cloudflare Access identity header to Grafana auth proxy
+		header_up X-WEBAUTH-USER {header.Cf-Access-Authenticated-User-Email}
+	}
 }
 
 # ── Prometheus — Cloudflare Access protected ──────────────────────
