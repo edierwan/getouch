@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Try WhatsApp Gateway — Getouch</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="bg-mesh"></div>
+
+  <div class="try-layout">
+    <!-- ─── Top Bar ─────────────────────────────────────── -->
+    <nav class="try-nav">
+      <a href="/" class="try-nav__back">← Back</a>
+      <div class="try-nav__title">
+        <span class="try-nav__icon">💬</span>
+        WhatsApp Gateway
+      </div>
+      <div class="try-nav__status">
+        <span class="badge badge--checking" data-service="wa">
+          <span class="badge__dot badge__dot--pulse"></span>Checking
+        </span>
+      </div>
+    </nav>
+
+    <!-- ─── Content ─────────────────────────────────────── -->
+    <div class="wa-demo">
+      <!-- Left: Features & Info -->
+      <div class="wa-demo__info">
+        <h1 class="wa-demo__title">WhatsApp Gateway</h1>
+        <p class="wa-demo__subtitle">Multi-tenant messaging platform with automated responses, powered by Baileys.</p>
+
+        <!-- Feature Cards -->
+        <div class="wa-features">
+          <div class="wa-feature">
+            <div class="wa-feature__icon">📱</div>
+            <div class="wa-feature__body">
+              <h3 class="wa-feature__title">QR Code Pairing</h3>
+              <p class="wa-feature__desc">Connect any WhatsApp account by scanning a QR code. No phone number API required.</p>
+            </div>
+          </div>
+          <div class="wa-feature">
+            <div class="wa-feature__icon">🏢</div>
+            <div class="wa-feature__body">
+              <h3 class="wa-feature__title">Multi-Tenant</h3>
+              <p class="wa-feature__desc">Run multiple WhatsApp sessions from a single gateway. Isolate each tenant's data securely.</p>
+            </div>
+          </div>
+          <div class="wa-feature">
+            <div class="wa-feature__icon">🤖</div>
+            <div class="wa-feature__body">
+              <h3 class="wa-feature__title">AI Auto-Replies</h3>
+              <p class="wa-feature__desc">Route incoming messages to Ollama AI for instant, intelligent automated responses.</p>
+            </div>
+          </div>
+          <div class="wa-feature">
+            <div class="wa-feature__icon">🔗</div>
+            <div class="wa-feature__body">
+              <h3 class="wa-feature__title">Webhook Integration</h3>
+              <p class="wa-feature__desc">Receive real-time webhook events for every incoming message, status update, and delivery receipt.</p>
+            </div>
+          </div>
+          <div class="wa-feature">
+            <div class="wa-feature__icon">🔒</div>
+            <div class="wa-feature__body">
+              <h3 class="wa-feature__title">On-Premises</h3>
+              <p class="wa-feature__desc">Everything runs on your infrastructure. No third-party cloud, no data leaks. Full ownership.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- API Examples -->
+        <div class="wa-api-section">
+          <h3 class="wa-api-title">Quick API Reference</h3>
+          <div class="wa-api-example">
+            <div class="wa-api-label">Send a Message</div>
+            <pre class="wa-api-code">POST /api/v1/messages
+{
+  "to": "60123456789",
+  "text": "Hello from Getouch!",
+  "session": "my-session"
+}</pre>
+          </div>
+          <div class="wa-api-example">
+            <div class="wa-api-label">Check Session Status</div>
+            <pre class="wa-api-code">GET /api/v1/sessions/my-session/status
+
+→ { "status": "connected", "phone": "60123456789" }</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Interactive Demo -->
+      <div class="wa-demo__preview">
+        <div class="wa-phone">
+          <div class="wa-phone__header">
+            <div class="wa-phone__header-left">
+              <div class="wa-phone__avatar">G</div>
+              <div>
+                <div class="wa-phone__name">Getouch Bot</div>
+                <div class="wa-phone__status" id="wa-status">online</div>
+              </div>
+            </div>
+            <div class="wa-phone__header-icons">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+            </div>
+          </div>
+
+          <div class="wa-phone__messages" id="wa-messages">
+            <div class="wa-phone__date">Today</div>
+
+            <div class="wa-phone__msg wa-phone__msg--received">
+              <p>Welcome to Getouch WhatsApp Gateway! 👋</p>
+              <p style="margin-top:4px">I'm an automated bot. Try sending me a message to see how our gateway processes and responds.</p>
+              <span class="wa-phone__time">10:00 AM</span>
+            </div>
+          </div>
+
+          <div class="wa-phone__input-area">
+            <input type="text" class="wa-phone__input" id="wa-input" placeholder="Type a message">
+            <button class="wa-phone__send" id="wa-send" title="Send">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo Controls -->
+        <div class="wa-demo-controls">
+          <p class="wa-demo-controls__label">Try sending these demo messages:</p>
+          <div class="wa-demo-chips">
+            <button class="chip chip--wa" data-msg="Hi there!">Hi there!</button>
+            <button class="chip chip--wa" data-msg="What services do you offer?">What services?</button>
+            <button class="chip chip--wa" data-msg="How do I integrate the API?">API integration</button>
+            <button class="chip chip--wa" data-msg="What are your pricing plans?">Pricing</button>
+          </div>
+          <p class="wa-demo-note">This is a live simulation. Messages are processed by our WhatsApp Gateway service.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    var messagesEl = document.getElementById('wa-messages');
+    var input      = document.getElementById('wa-input');
+    var sendBtn    = document.getElementById('wa-send');
+    var chips      = document.querySelectorAll('.chip--wa');
+    var isLoading  = false;
+
+    /* ── Demo auto-responses (client-side for offline mode) */
+    var demoResponses = {
+      'hi': "Hi there! 👋 Welcome to Getouch. How can I help you today?",
+      'hello': "Hello! Welcome to Getouch WhatsApp Gateway. I can help you with messaging, API integration, and more.",
+      'hi there!': "Hey! 👋 Great to hear from you. I'm the Getouch WhatsApp bot. Ask me about our services!",
+      'what services do you offer?': "We offer:\n\n📱 *WhatsApp Gateway* — Multi-tenant messaging\n🤖 *AI Bot API* — On-premises conversational AI\n⚡ *REST API* — Full programmatic access\n\nAll self-hosted on your infrastructure!",
+      'how do i integrate the api?': "Integration is simple! Our REST API supports:\n\n1️⃣ Send messages via POST /api/v1/messages\n2️⃣ Receive webhooks for incoming messages\n3️⃣ Manage sessions via /api/v1/sessions\n\nFull docs available at api.getouch.co/docs 📚",
+      'what are your pricing plans?': "Getouch is self-hosted, so you only pay for your own infrastructure! 🎉\n\n• *Free* — Open source core\n• *Pro* — Priority support + advanced features\n• *Enterprise* — Custom deployment + SLA\n\nContact us at hello@getouch.co for details.",
+      'help': "Here's what I can help with:\n\n• 📱 WhatsApp messaging setup\n• 🤖 AI bot configuration\n• 🔗 API integration\n• 💰 Pricing information\n\nJust type your question!",
+    };
+
+    function getAutoResponse(text) {
+      var lower = text.toLowerCase().trim();
+      if (demoResponses[lower]) return demoResponses[lower];
+
+      // Fuzzy keyword matching
+      if (lower.includes('price') || lower.includes('cost') || lower.includes('plan')) {
+        return demoResponses['what are your pricing plans?'];
+      }
+      if (lower.includes('api') || lower.includes('integrat')) {
+        return demoResponses['how do i integrate the api?'];
+      }
+      if (lower.includes('service') || lower.includes('offer') || lower.includes('what do')) {
+        return demoResponses['what services do you offer?'];
+      }
+      if (lower.includes('hi') || lower.includes('hello') || lower.includes('hey')) {
+        return "Hey there! 👋 How can I help you today?";
+      }
+      if (lower.includes('help')) {
+        return demoResponses['help'];
+      }
+
+      return "Thanks for your message! Our WhatsApp Gateway processed it in real time. 🚀\n\nIn production, this would be routed to your configured AI model or webhook endpoint for a customized response.";
+    }
+
+    function getTime() {
+      var now = new Date();
+      var h = now.getHours();
+      var m = now.getMinutes();
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      m = m < 10 ? '0' + m : m;
+      return h + ':' + m + ' ' + ampm;
+    }
+
+    function addWaMessage(text, type) {
+      var div = document.createElement('div');
+      div.className = 'wa-phone__msg wa-phone__msg--' + type;
+      // Format text: replace \n with <br> and *bold* with <strong>
+      var html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      div.innerHTML = '<p>' + html + '</p><span class="wa-phone__time">' + getTime() + (type === 'sent' ? ' ✓✓' : '') + '</span>';
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function addTypingIndicator() {
+      var div = document.createElement('div');
+      div.className = 'wa-phone__msg wa-phone__msg--received wa-phone__typing';
+      div.id = 'wa-typing';
+      div.innerHTML = '<div class="typing-dots typing-dots--wa"><span></span><span></span><span></span></div>';
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      var el = document.getElementById('wa-typing');
+      if (el) el.remove();
+    }
+
+    function sendWaMessage() {
+      var text = input.value.trim();
+      if (!text || isLoading) return;
+
+      addWaMessage(text, 'sent');
+      input.value = '';
+      isLoading = true;
+
+      addTypingIndicator();
+
+      // First try the real WA gateway, fallback to demo response
+      var responded = false;
+      var timer = setTimeout(function() {
+        if (!responded) {
+          responded = true;
+          removeTypingIndicator();
+          addWaMessage(getAutoResponse(text), 'received');
+          isLoading = false;
+        }
+      }, 1200);
+
+      fetch('/api/wa-demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!responded && data.reply) {
+          responded = true;
+          clearTimeout(timer);
+          removeTypingIndicator();
+          addWaMessage(data.reply, 'received');
+          isLoading = false;
+        }
+      })
+      .catch(function() {
+        // Timer fallback will handle it
+      });
+    }
+
+    sendBtn.addEventListener('click', sendWaMessage);
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendWaMessage();
+      }
+    });
+
+    chips.forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        input.value = chip.dataset.msg;
+        sendWaMessage();
+      });
+    });
+
+    /* ── Update status badge ───────────────────────────── */
+    fetch('/api/status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.services && data.services.wa) {
+          var badges = document.querySelectorAll('[data-service="wa"]');
+          var statusEl = document.getElementById('wa-status');
+          badges.forEach(function(el) {
+            if (data.services.wa.status === 'ok') {
+              el.className = 'badge badge--ok';
+              el.innerHTML = '<span class="badge__dot"></span>Online';
+              if (statusEl) statusEl.textContent = 'online';
+            } else {
+              el.className = 'badge badge--offline';
+              el.innerHTML = '<span class="badge__dot"></span>Offline';
+              if (statusEl) statusEl.textContent = 'demo mode';
+            }
+          });
+        }
+      })
+      .catch(function() {});
+  })();
+  </script>
+</body>
+</html>
