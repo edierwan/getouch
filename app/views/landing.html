@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Getouch — Intelligent engagement platform powered by on-premises AI">
+  <title>Getouch Platform</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="bg-mesh"></div>
+
+  <div class="container">
+    <!-- ─── Navigation ──────────────────────────────────── -->
+    <nav class="nav">
+      <div class="nav__logo">ge<span>touch</span></div>
+      <ul class="nav__links">
+        <li><a href="/auth/login" class="btn btn--ghost" style="padding: 6px 16px; font-size: 0.8125rem;">Login</a></li>
+        <li><a href="/auth/register" class="btn btn--primary" style="padding: 6px 16px; font-size: 0.8125rem;">Get Started</a></li>
+      </ul>
+    </nav>
+
+    <!-- ─── Hero / AI Chat ──────────────────────────────── -->
+    <section class="hero hero--chat">
+      <div class="hero__chat-icon">
+        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1 class="hero__title" style="font-size: clamp(1.75rem, 4vw, 2.75rem);">
+        Hi, I'm <span class="gradient-text">Getouch AI</span>
+      </h1>
+      <p class="hero__subtitle" style="margin-bottom: 20px;">
+        Ask me anything about our services — WhatsApp automation, AI
+        chatbot API, database tools, or any general question. Powered by on-premises AI.
+      </p>
+
+      <!-- Suggestion Chips -->
+      <div class="landing-suggestions" id="landing-suggestions">
+        <p class="landing-suggestions__label">Try one of these to get started:</p>
+        <div class="landing-suggestions__chips">
+          <button class="chip chip--landing" data-msg="What services do you offer?">💬 What services do you offer?</button>
+          <button class="chip chip--landing" data-msg="Tell me about WhatsApp Gateway">📱 Tell me about WhatsApp Gateway</button>
+          <button class="chip chip--landing" data-msg="How does the AI Bot work?">📦 How does the AI Bot work?</button>
+          <button class="chip chip--landing" data-msg="Show me the REST API">⚡ Show me the REST API</button>
+          <button class="chip chip--landing" data-msg="What are AI + DB tools?">💻 What are AI + DB tools?</button>
+          <button class="chip chip--landing" data-msg="How do I get started?">🚀 How do I get started?</button>
+        </div>
+      </div>
+
+      <!-- Chat Messages Area (appears after first message) -->
+      <div class="landing-chat" id="landing-chat" style="display:none;">
+        <div class="landing-chat__messages" id="landing-messages"></div>
+      </div>
+
+      <!-- Image Result Area (for image mode) -->
+      <div class="landing-image-result" id="landing-image-result" style="display:none;">
+        <div class="landing-image-result__inner" id="image-result-inner"></div>
+      </div>
+    </section>
+
+    <!-- ─── Input Bar ───────────────────────────────────── -->
+    <div class="landing-input-bar">
+      <div class="landing-input-bar__inner">
+        <!-- Mode Selector -->
+        <div class="landing-mode" id="landing-mode">
+          <select class="landing-mode__select" id="mode-select">
+            <option value="text" selected>💬 Getouch AI</option>
+            <option value="image">🎨 Getouch Image</option>
+          </select>
+        </div>
+        <div class="landing-input-bar__wrap">
+          <input type="text"
+            class="landing-input-bar__input"
+            id="landing-input"
+            placeholder="Ask about our services or anything else..."
+            autocomplete="off"
+            maxlength="4000">
+          <button class="landing-input-bar__send" id="landing-send" title="Send">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="landing-input-bar__footer">
+        Powered by <a href="/">Getouch AI</a> · On-premises · Your data stays private ·
+        <a href="/admin/">Admin</a>
+      </div>
+      <!-- Image Quota Badge (shown in image mode) -->
+      <div class="landing-quota" id="landing-quota" style="display:none;">
+        <span id="quota-text"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    /* ── Elements ──────────────────────────────────────── */
+    var input       = document.getElementById('landing-input');
+    var sendBtn     = document.getElementById('landing-send');
+    var modeSelect  = document.getElementById('mode-select');
+    var suggestions = document.getElementById('landing-suggestions');
+    var chatArea    = document.getElementById('landing-chat');
+    var messages    = document.getElementById('landing-messages');
+    var imageResult = document.getElementById('landing-image-result');
+    var imageInner  = document.getElementById('image-result-inner');
+    var quotaBadge  = document.getElementById('landing-quota');
+    var quotaText   = document.getElementById('quota-text');
+
+    var isStreaming = false;
+    var currentMode = 'text';
+    var abortCtrl   = null;
+
+    /* ── Mode switching ────────────────────────────────── */
+    modeSelect.addEventListener('change', function() {
+      currentMode = this.value;
+      if (currentMode === 'image') {
+        input.placeholder = 'Describe the image you want to generate...';
+        input.maxLength = 1000;
+        quotaBadge.style.display = '';
+        loadQuota();
+      } else {
+        input.placeholder = 'Ask about our services or anything else...';
+        input.maxLength = 4000;
+        quotaBadge.style.display = 'none';
+      }
+    });
+
+    /* ── Quota loader ──────────────────────────────────── */
+    function loadQuota() {
+      fetch('/v1/image/quota')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          quotaText.textContent = d.remaining + '/' + d.limit + ' images remaining today';
+          quotaBadge.style.display = '';
+        })
+        .catch(function() {
+          quotaText.textContent = 'Quota unavailable';
+        });
+    }
+
+    /* ── Send on Enter ─────────────────────────────────── */
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+    sendBtn.addEventListener('click', send);
+
+    /* ── Suggestion chips ──────────────────────────────── */
+    document.querySelectorAll('.chip--landing').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        input.value = this.dataset.msg;
+        send();
+      });
+    });
+
+    /* ── Helpers ───────────────────────────────────────── */
+    function escapeHtml(text) {
+      var d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    function formatMarkdown(text) {
+      return escapeHtml(text)
+        .replace(/```([\s\S]*?)```/g, '<pre class="chat__code">$1</pre>')
+        .replace(/`([^`]+)`/g, '<code class="chat__inline-code">$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+    }
+
+    function scrollChat() {
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    /* ── Main send function ────────────────────────────── */
+    function send() {
+      var text = input.value.trim();
+      if (!text || isStreaming) return;
+
+      // Hide suggestions on first interaction
+      if (suggestions) suggestions.style.display = 'none';
+
+      if (currentMode === 'image') {
+        sendImage(text);
+      } else {
+        sendChat(text);
+      }
+
+      input.value = '';
+    }
+
+    /* ── Text Chat with SSE Streaming ──────────────────── */
+    function sendChat(text) {
+      chatArea.style.display = '';
+      imageResult.style.display = 'none';
+
+      // Add user message
+      var userDiv = document.createElement('div');
+      userDiv.className = 'lc-msg lc-msg--user';
+      userDiv.innerHTML = '<div class="lc-msg__bubble lc-msg__bubble--user">' + escapeHtml(text) + '</div>';
+      messages.appendChild(userDiv);
+      scrollChat();
+
+      // Add bot message container
+      var botDiv = document.createElement('div');
+      botDiv.className = 'lc-msg lc-msg--bot';
+      botDiv.innerHTML =
+        '<div class="lc-msg__avatar">💬</div>' +
+        '<div class="lc-msg__bubble">' +
+          '<span class="lc-msg__thinking">Thinking…</span>' +
+          '<span class="lc-msg__content"></span>' +
+          '<span class="lc-msg__cursor"></span>' +
+        '</div>';
+      messages.appendChild(botDiv);
+      scrollChat();
+
+      var contentEl  = botDiv.querySelector('.lc-msg__content');
+      var thinkingEl = botDiv.querySelector('.lc-msg__thinking');
+      var cursorEl   = botDiv.querySelector('.lc-msg__cursor');
+
+      isStreaming = true;
+      sendBtn.disabled = true;
+      abortCtrl = new AbortController();
+
+      var firstTokenReceived = false;
+      var fullText = '';
+
+      // Use fetch + ReadableStream for SSE
+      fetch('/v1/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+        signal: abortCtrl.signal,
+      }).then(function(response) {
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+
+        function processStream() {
+          return reader.read().then(function(result) {
+            if (result.done) {
+              // Stream ended
+              cursorEl.style.display = 'none';
+              isStreaming = false;
+              sendBtn.disabled = false;
+              input.focus();
+              return;
+            }
+
+            buffer += decoder.decode(result.value, { stream: true });
+            var lines = buffer.split('\n');
+            buffer = lines.pop();
+
+            for (var i = 0; i < lines.length; i++) {
+              var line = lines[i].trim();
+              if (line.startsWith('data: ')) {
+                var eventType = 'token';
+                // Check preceding event line
+                if (i > 0 && lines[i-1].trim().startsWith('event: ')) {
+                  eventType = lines[i-1].trim().replace('event: ', '');
+                }
+
+                try {
+                  var payload = JSON.parse(line.substring(6));
+
+                  if (eventType === 'token' && payload.delta) {
+                    if (!firstTokenReceived) {
+                      firstTokenReceived = true;
+                      thinkingEl.style.display = 'none';
+                    }
+                    fullText += payload.delta;
+                    contentEl.innerHTML = formatMarkdown(fullText);
+                    scrollChat();
+                  }
+
+                  if (eventType === 'done') {
+                    cursorEl.style.display = 'none';
+                  }
+
+                  if (eventType === 'error') {
+                    thinkingEl.style.display = 'none';
+                    cursorEl.style.display = 'none';
+                    contentEl.innerHTML = '<span style="color:var(--red)">' +
+                      escapeHtml(payload.message || 'AI error') + '</span>';
+                  }
+                } catch(e) {}
+              } else if (line.startsWith('event: ')) {
+                // Store event type — handled with next data line
+              }
+            }
+
+            return processStream();
+          });
+        }
+
+        return processStream();
+      }).catch(function(err) {
+        if (err.name === 'AbortError') return;
+        thinkingEl.style.display = 'none';
+        cursorEl.style.display = 'none';
+        contentEl.innerHTML = '<span style="color:var(--red)">Could not reach the AI service. It may be loading.</span>';
+        isStreaming = false;
+        sendBtn.disabled = false;
+      });
+    }
+
+    /* ── Image Generation ──────────────────────────────── */
+    function sendImage(prompt) {
+      chatArea.style.display = 'none';
+      imageResult.style.display = '';
+
+      imageInner.innerHTML =
+        '<div class="img-progress">' +
+          '<div class="img-progress__spinner"></div>' +
+          '<p class="img-progress__text">Generating image…</p>' +
+          '<p class="img-progress__hint">This may take 15-60 seconds</p>' +
+        '</div>';
+
+      isStreaming = true;
+      sendBtn.disabled = true;
+
+      fetch('/v1/image/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt }),
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.error) {
+          imageInner.innerHTML =
+            '<div class="img-error">' +
+              '<p style="color:var(--red);font-weight:600;">Image generation: ' + escapeHtml(data.error) + '</p>' +
+              (data.detail ? '<p style="color:var(--text-dim);font-size:.8rem;margin-top:8px;">' + escapeHtml(data.detail) + '</p>' : '') +
+            '</div>';
+        } else {
+          var timeStr = data.timings ? (data.timings.generation_ms/1000).toFixed(1) + 's' : '';
+          var stepsStr = data.timings ? data.timings.steps + ' steps' : '';
+          imageInner.innerHTML =
+            '<div class="img-result">' +
+              '<img class="img-result__image" src="' + data.image_url + '" alt="Generated image">' +
+              '<div class="img-result__meta">' +
+                '<div class="img-result__seed">Seed: ' + data.seed + '</div>' +
+                '<div class="img-result__time">' + timeStr + ' · ' + stepsStr + '</div>' +
+                '<button class="btn btn--ghost btn--sm img-result__copy" data-prompt="' + escapeHtml(prompt) + '">Copy Prompt</button>' +
+              '</div>' +
+            '</div>';
+
+          // Copy prompt handler
+          var copyBtn = imageInner.querySelector('.img-result__copy');
+          if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+              navigator.clipboard.writeText(this.dataset.prompt).then(function() {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(function() { copyBtn.textContent = 'Copy Prompt'; }, 2000);
+              });
+            });
+          }
+
+          loadQuota(); // Refresh quota
+        }
+      })
+      .catch(function() {
+        imageInner.innerHTML =
+          '<div class="img-error">' +
+            '<p style="color:var(--red);font-weight:600;">Image service unavailable</p>' +
+          '</div>';
+      })
+      .finally(function() {
+        isStreaming = false;
+        sendBtn.disabled = false;
+        input.focus();
+      });
+    }
+
+  })();
+  </script>
+</body>
+</html>

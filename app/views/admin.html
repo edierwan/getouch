@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getouch Admin</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- ─── Navigation ──────────────────────────────────── -->
+    <nav class="admin-nav">
+      <div class="admin-nav__logo">ge<span>touch</span> admin</div>
+      <a href="/admin/" class="admin-nav__link active">Dashboard</a>
+      <a href="/admin/ops" class="admin-nav__link">Ops Dashboard</a>
+      <a href="/" class="admin-nav__link">← Home</a>
+    </nav>
+
+    <!-- ─── Content ─────────────────────────────────────── -->
+    <div class="admin-content admin-content--wide">
+      <h1 class="admin-content__title">Dashboard</h1>
+      <p class="admin-content__subtitle">Protected by Cloudflare Access</p>
+
+      <!-- ── Service Health ─────────────────────────────── -->
+      <div class="ops-section">
+        <h2 class="ops-section__title">Service Health</h2>
+        <div class="health-grid" id="health-grid">
+
+          <div class="health-item" id="health-landing">
+            <div class="health-item__dot health-item__dot--checking"></div>
+            <div class="health-item__info">
+              <div class="health-item__name">Landing</div>
+              <div class="health-item__url">checking…</div>
+            </div>
+            <div class="health-item__latency" id="lat-landing">…</div>
+          </div>
+
+          <div class="health-item" id="health-bot">
+            <div class="health-item__dot health-item__dot--checking"></div>
+            <div class="health-item__info">
+              <div class="health-item__name">Bot / AI</div>
+              <div class="health-item__url">checking…</div>
+            </div>
+            <div class="health-item__latency" id="lat-bot">…</div>
+          </div>
+
+          <div class="health-item" id="health-wa">
+            <div class="health-item__dot health-item__dot--checking"></div>
+            <div class="health-item__info">
+              <div class="health-item__name">WhatsApp</div>
+              <div class="health-item__url">checking…</div>
+            </div>
+            <div class="health-item__latency" id="lat-wa">…</div>
+          </div>
+
+          <div class="health-item" id="health-api">
+            <div class="health-item__dot health-item__dot--checking"></div>
+            <div class="health-item__info">
+              <div class="health-item__name">API</div>
+              <div class="health-item__url">checking…</div>
+            </div>
+            <div class="health-item__latency" id="lat-api">…</div>
+          </div>
+
+        </div>
+
+        <!-- Health Details Box -->
+        <div class="info-box" id="health-info" style="margin-top:12px; display:none;">
+          <div class="info-box__title">⚠️ Offline Services Detected</div>
+          <p class="info-box__text" id="health-info-text"></p>
+        </div>
+      </div>
+
+      <!-- ── AI Settings ───────────────────────────────── -->
+      <div class="ops-section">
+        <h2 class="ops-section__title">AI Settings</h2>
+        <div class="ai-settings" id="ai-settings">
+
+          <div class="ai-setting">
+            <label class="ai-setting__label">Default Text Model</label>
+            <p class="ai-setting__hint">Used when users don't specify a model on the landing page.</p>
+            <select class="ai-setting__select" id="setting-default-model">
+              <option value="llama3.1:8b">llama3.1:8b (Fast)</option>
+              <option value="qwen2.5:14b-instruct">qwen2.5:14b-instruct (Smart)</option>
+            </select>
+          </div>
+
+          <div class="ai-setting">
+            <label class="ai-setting__label">Enable Image Generation</label>
+            <p class="ai-setting__hint">Toggle SDXL image generation via ComfyUI for public users.</p>
+            <label class="ai-toggle">
+              <input type="checkbox" id="setting-enable-image" checked>
+              <span class="ai-toggle__slider"></span>
+              <span class="ai-toggle__text" id="toggle-text">Enabled</span>
+            </label>
+          </div>
+
+          <div class="ai-setting">
+            <label class="ai-setting__label">Free Images Per Day</label>
+            <p class="ai-setting__hint">Maximum image generations per user/IP per day.</p>
+            <input type="number" class="ai-setting__input" id="setting-max-images" value="5" min="0" max="100">
+          </div>
+
+          <div style="margin-top: 16px;">
+            <button class="btn btn--primary btn--sm" id="save-ai-settings">Save AI Settings</button>
+            <span class="ai-settings__status" id="settings-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Platform Services (moved from landing) ────── -->
+      <div class="ops-section">
+        <h2 class="ops-section__title">Platform Services</h2>
+        <div class="admin-services-grid">
+
+          <a href="/admin/ops#whatsapp" class="admin-svc-card">
+            <div class="admin-svc-card__icon">💬</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">WhatsApp Gateway</h3>
+              <p class="admin-svc-card__desc">Multi-tenant messaging via Baileys</p>
+            </div>
+            <span class="badge badge--checking" data-service="wa"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+          </a>
+
+          <a href="/admin/ops#bot" class="admin-svc-card">
+            <div class="admin-svc-card__icon">🤖</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">Bot / AI API</h3>
+              <p class="admin-svc-card__desc">Ollama qwen2.5 conversational AI</p>
+            </div>
+            <span class="badge badge--checking" data-service="bot"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+          </a>
+
+          <a href="/admin/ops#api" class="admin-svc-card">
+            <div class="admin-svc-card__icon">⚡</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">REST API</h3>
+              <p class="admin-svc-card__desc">Programmatic access to platform features</p>
+            </div>
+            <span class="badge badge--checking" data-service="api"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+          </a>
+
+          <a href="{{DB_URL}}" target="_blank" rel="noopener" class="admin-svc-card">
+            <div class="admin-svc-card__icon">🗄️</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">Database (pgAdmin)</h3>
+              <p class="admin-svc-card__desc">PostgreSQL management</p>
+            </div>
+            <span class="badge badge--access">🔒 Access Required</span>
+          </a>
+
+          <div class="admin-svc-card admin-svc-card--disabled">
+            <div class="admin-svc-card__icon">📊</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">Grafana</h3>
+              <p class="admin-svc-card__desc">Dashboards and metrics visualization</p>
+            </div>
+            <span class="badge badge--tailscale">Tailscale Only</span>
+          </div>
+
+          <div class="admin-svc-card admin-svc-card--disabled">
+            <div class="admin-svc-card__icon">📈</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">Prometheus</h3>
+              <p class="admin-svc-card__desc">Metrics collection and alerting</p>
+            </div>
+            <span class="badge badge--tailscale">Tailscale Only</span>
+          </div>
+
+          <div class="admin-svc-card admin-svc-card--disabled">
+            <div class="admin-svc-card__icon">🚀</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">Coolify</h3>
+              <p class="admin-svc-card__desc">CI/CD from GitHub</p>
+            </div>
+            <span class="badge badge--planned">Planned</span>
+          </div>
+
+          <a href="/" class="admin-svc-card">
+            <div class="admin-svc-card__icon">🛡️</div>
+            <div class="admin-svc-card__body">
+              <h3 class="admin-svc-card__title">Admin Portal</h3>
+              <p class="admin-svc-card__desc">This dashboard</p>
+            </div>
+            <span class="badge badge--ok"><span class="badge__dot"></span>Active</span>
+          </a>
+
+        </div>
+      </div>
+
+      <!-- ── Quick Links ────────────────────────────────── -->
+      <div class="ops-section">
+        <h2 class="ops-section__title">Quick Links</h2>
+        <div class="health-grid">
+          <a href="{{DB_URL}}" target="_blank" rel="noopener" class="health-item health-item--link">
+            <div class="health-item__dot health-item__dot--ok"></div>
+            <div class="health-item__info">
+              <div class="health-item__name" style="color:var(--accent)">pgAdmin</div>
+              <div class="health-item__url">db.getouch.co · Access Required</div>
+            </div>
+          </a>
+          <a href="/admin/ops" class="health-item health-item--link">
+            <div class="health-item__dot health-item__dot--ok"></div>
+            <div class="health-item__info">
+              <div class="health-item__name" style="color:var(--accent)">Ops Dashboard</div>
+              <div class="health-item__url">Service links &amp; tools</div>
+            </div>
+          </a>
+          <a href="{{BOT_URL}}/health" target="_blank" rel="noopener" class="health-item health-item--link">
+            <div class="health-item__dot health-item__dot--ok"></div>
+            <div class="health-item__info">
+              <div class="health-item__name" style="color:var(--accent)">Bot Health</div>
+              <div class="health-item__url">bot.getouch.co/health</div>
+            </div>
+          </a>
+          <a href="{{WA_URL}}/health" target="_blank" rel="noopener" class="health-item health-item--link">
+            <div class="health-item__dot health-item__dot--ok"></div>
+            <div class="health-item__info">
+              <div class="health-item__name" style="color:var(--accent)">WA Health</div>
+              <div class="health-item__url">wa.getouch.co/health</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <!-- ── Recent Activity / Event Log ─────────────────── -->
+      <div class="ops-section">
+        <h2 class="ops-section__title">Recent Activity</h2>
+        <div class="activity-log" id="activity-log">
+          <div class="activity-item">
+            <div class="activity-item__time" id="activity-time">—</div>
+            <div class="activity-item__body">
+              <div class="activity-item__title">Health check performed</div>
+              <div class="activity-item__desc" id="activity-summary">Checking services…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Log Commands ───────────────────────────────── -->
+      <div class="ops-section">
+        <h2 class="ops-section__title">Useful Commands</h2>
+        <pre class="code-block">ssh deploy@100.103.248.15
+cd /opt/getouch/compose
+docker compose logs -f caddy --tail 100
+docker compose -f docker-compose.apps.yml logs -f --tail 100
+
+# Restart a specific service
+docker compose -f docker-compose.apps.yml restart bot
+docker compose -f docker-compose.apps.yml restart wa
+docker compose -f docker-compose.apps.yml restart api
+
+# Check service status
+docker compose -f docker-compose.apps.yml ps</pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  (function() {
+    'use strict';
+
+    /* ── Enhanced admin health checking ─────────────────── */
+    function checkHealth() {
+      fetch('/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var offlineServices = [];
+          var onlineCount = 0;
+          var totalCount = 0;
+
+          Object.entries(data.services).forEach(function(pair) {
+            var name = pair[0];
+            var svc = pair[1];
+            totalCount++;
+
+            // Update health grid
+            var dot = document.querySelector('#health-' + name + ' .health-item__dot');
+            var url = document.querySelector('#health-' + name + ' .health-item__url');
+            var lat = document.getElementById('lat-' + name);
+
+            if (dot) {
+              dot.className = 'health-item__dot health-item__dot--' + (svc.status === 'ok' ? 'ok' : 'offline');
+            }
+            if (url) {
+              var detail = svc.status;
+              if (svc.version) detail = 'v' + svc.version;
+              if (svc.model) detail += ' · ' + svc.model;
+              url.textContent = detail;
+            }
+            if (lat && svc.latency_ms !== undefined) {
+              lat.textContent = svc.latency_ms + 'ms';
+            }
+
+            // Update service cards
+            var badges = document.querySelectorAll('[data-service="' + name + '"]');
+            badges.forEach(function(el) {
+              if (svc.status === 'ok') {
+                el.className = 'badge badge--ok';
+                el.innerHTML = '<span class="badge__dot"></span>Online';
+              } else {
+                el.className = 'badge badge--offline';
+                el.innerHTML = '<span class="badge__dot"></span>Offline';
+              }
+            });
+
+            if (svc.status === 'ok') {
+              onlineCount++;
+            } else {
+              offlineServices.push(name);
+            }
+          });
+
+          // Show offline info box
+          var infoBox = document.getElementById('health-info');
+          var infoText = document.getElementById('health-info-text');
+          if (offlineServices.length > 0 && infoBox && infoText) {
+            infoBox.style.display = 'block';
+            var reasons = offlineServices.map(function(s) {
+              var svc = data.services[s];
+              var detail = '<strong>' + s.toUpperCase() + '</strong>: ';
+              if (svc.latency_ms < 50) {
+                detail += 'Connection refused (service not running). Check with: <code style="color:var(--accent)">docker compose -f docker-compose.apps.yml ps ' + s + '</code>';
+              } else if (svc.latency_ms >= 2000) {
+                detail += 'Timeout after ' + svc.latency_ms + 'ms (service unreachable or DNS issue).';
+              } else {
+                detail += 'Responded in ' + svc.latency_ms + 'ms but returned error. Check service logs.';
+              }
+              return detail;
+            });
+            infoText.innerHTML = reasons.join('<br><br>') +
+              '<br><br><span style="color:var(--text-dim)">Tip: In local development, services (bot, wa, api) run as Docker containers. They appear offline when their Docker containers are not running. SSH into the server and restart them.</span>';
+          } else if (infoBox) {
+            infoBox.style.display = 'none';
+          }
+
+          // Update activity log
+          var actTime = document.getElementById('activity-time');
+          var actSummary = document.getElementById('activity-summary');
+          if (actTime) actTime.textContent = new Date().toLocaleTimeString();
+          if (actSummary) {
+            actSummary.textContent = onlineCount + '/' + (totalCount + 1) + ' services online' +
+              (offlineServices.length > 0 ? '. Offline: ' + offlineServices.join(', ') : '. All services healthy.');
+          }
+        })
+        .catch(function() {});
+    }
+
+    // Run immediately and every 30 seconds
+    checkHealth();
+    setInterval(checkHealth, 30000);
+
+    /* ── AI Settings management ─────────────────────────── */
+    var modelSelect  = document.getElementById('setting-default-model');
+    var imageToggle  = document.getElementById('setting-enable-image');
+    var toggleText   = document.getElementById('toggle-text');
+    var maxImages    = document.getElementById('setting-max-images');
+    var saveBtn      = document.getElementById('save-ai-settings');
+    var statusEl     = document.getElementById('settings-status');
+
+    // Load current settings
+    function loadSettings() {
+      fetch('/v1/admin/settings')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.settings) return;
+          var s = data.settings;
+          if (s['ai.default_text_model']) modelSelect.value = s['ai.default_text_model'];
+          if (s['ai.enable_image'] !== undefined) {
+            imageToggle.checked = !!s['ai.enable_image'];
+            toggleText.textContent = imageToggle.checked ? 'Enabled' : 'Disabled';
+          }
+          if (s['ai.image.max_per_day_free'] !== undefined) maxImages.value = s['ai.image.max_per_day_free'];
+        })
+        .catch(function() {});
+    }
+    loadSettings();
+
+    imageToggle.addEventListener('change', function() {
+      toggleText.textContent = this.checked ? 'Enabled' : 'Disabled';
+    });
+
+    // Save settings
+    saveBtn.addEventListener('click', function() {
+      statusEl.textContent = 'Saving...';
+      statusEl.style.color = 'var(--text-muted)';
+
+      var updates = [
+        { key: 'ai.default_text_model', value: modelSelect.value },
+        { key: 'ai.enable_image', value: imageToggle.checked },
+        { key: 'ai.image.max_per_day_free', value: parseInt(maxImages.value, 10) }
+      ];
+
+      Promise.all(updates.map(function(u) {
+        return fetch('/v1/admin/settings/' + encodeURIComponent(u.key), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: u.value })
+        }).then(function(r) { return r.json(); });
+      }))
+      .then(function(results) {
+        var allOk = results.every(function(r) { return r.ok; });
+        if (allOk) {
+          statusEl.textContent = 'Saved!';
+          statusEl.style.color = 'var(--green)';
+        } else {
+          statusEl.textContent = 'Some settings failed';
+          statusEl.style.color = 'var(--red)';
+        }
+        setTimeout(function() { statusEl.textContent = ''; }, 3000);
+      })
+      .catch(function() {
+        statusEl.textContent = 'Save failed';
+        statusEl.style.color = 'var(--red)';
+        setTimeout(function() { statusEl.textContent = ''; }, 3000);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>
