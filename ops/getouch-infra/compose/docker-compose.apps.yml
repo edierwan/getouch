@@ -21,6 +21,13 @@ services:
       VERSION: "2.0.0"
       TZ: Asia/Kuala_Lumpur
       NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://getouch:getouch@postgres:5432/getouch}
+      SESSION_SECRET: ${SESSION_SECRET:-getouch-session-secret}
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: "11434"
+      COMFYUI_HOST: comfyui
+      COMFYUI_PORT: "8188"
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -32,8 +39,11 @@ services:
       CLOUDFLARE_ZONE_ID: ${CLOUDFLARE_ZONE_ID:-}
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
       EMAIL_DOMAIN: ${EMAIL_DOMAIN:-getouch.co}
+    volumes:
+      - /opt/getouch/data/images:/app/data/images
     networks:
       - getouch_app
+      - getouch_data
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health',r=>{r.statusCode===200?process.exit(0):process.exit(1)}).on('error',()=>process.exit(1))"]
       interval: 30s

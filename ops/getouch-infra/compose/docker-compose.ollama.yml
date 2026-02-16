@@ -1,4 +1,4 @@
-# Ollama LLM with GPU passthrough
+# Ollama LLM + ComfyUI Image Generation with GPU passthrough
 # Usage: docker compose -f docker-compose.ollama.yml up -d
 
 services:
@@ -6,6 +6,8 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
+    environment:
+      TZ: Asia/Kuala_Lumpur
     deploy:
       resources:
         reservations:
@@ -17,6 +19,51 @@ services:
       - /opt/getouch/data/ollama:/root/.ollama
     networks:
       - getouch_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  comfyui:
+    image: ghcr.io/ai-dock/comfyui:latest
+    container_name: comfyui
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Kuala_Lumpur
+      CLI_ARGS: "--listen 0.0.0.0 --port 8188 --preview-method auto"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+        limits:
+          memory: 12g
+    volumes:
+      - /opt/getouch/data/comfyui/models:/opt/ComfyUI/models
+      - /opt/getouch/data/comfyui/output:/opt/ComfyUI/output
+      - /opt/getouch/data/images:/opt/ComfyUI/output/api
+    networks:
+      - getouch_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8188/system_stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   getouch_data:
