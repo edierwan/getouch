@@ -67,6 +67,12 @@ router.put('/settings/:key', async (req, res) => {
     'ai.default_text_model',
     'ai.enable_image',
     'ai.image.max_per_day_free',
+    'ai.image.max_per_day_free.prod',
+    'ai.image.max_per_day_free.dev',
+    'rate_limit.chat.prod',
+    'rate_limit.chat.dev',
+    'rate_limit.image.prod',
+    'rate_limit.image.dev',
   ];
 
   if (!allowedKeys.includes(key)) {
@@ -85,9 +91,19 @@ router.put('/settings/:key', async (req, res) => {
     return res.status(400).json({ error: 'value must be boolean' });
   }
 
-  if (key === 'ai.image.max_per_day_free') {
-    if (typeof value !== 'number' || value < 0 || value > 100) {
-      return res.status(400).json({ error: 'value must be a number between 0 and 100' });
+  // Validate numeric quota/rate settings
+  const numericKeys = [
+    'ai.image.max_per_day_free',
+    'ai.image.max_per_day_free.prod',
+    'ai.image.max_per_day_free.dev',
+    'rate_limit.chat.prod',
+    'rate_limit.chat.dev',
+    'rate_limit.image.prod',
+    'rate_limit.image.dev',
+  ];
+  if (numericKeys.includes(key)) {
+    if (typeof value !== 'number' || value < 0 || value > 1000) {
+      return res.status(400).json({ error: 'value must be a number between 0 and 1000' });
     }
   }
 

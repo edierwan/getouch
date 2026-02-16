@@ -1,9 +1,13 @@
 /**
  * POST /v1/chat — SSE streaming text generation via Ollama
  * GET  /v1/chat/models — list available text models
+ *
+ * Environment-aware: uses req.env from resolveEnvironment middleware.
+ * Rate limits and logging are per-environment.
  */
 const { Router } = require('express');
 const { getSetting }    = require('../lib/settings');
+const { queryFor }      = require('../lib/db');
 const { checkRateLimit, getActor } = require('../lib/rate-limit');
 
 const router = Router();
@@ -27,9 +31,12 @@ const RATE_LIMIT_RPM   = 15;  // requests per minute
  */
 router.post('/chat', async (req, res) => {
   const actor = getActor(req);
+  const env   = req.env || 'prod';
 
-  // Rate limiting
-  const rl = checkRateLimit(actor, 'chat', RATE_LIMIT_RPM, 60_000);
+  // Per-environment rate limiting
+  const rpmKey = `rate_limit.chat.${env}`;
+  const rateMax = await getSetting(rpmKey, env === 'dev' ? 60 : RATE_LIMIT_RPM);
+  const rl = checkRateLimit(`${env}:${actor}`, 'chat', rateMax, 60_000);
   if (!rl.allowed) {
     return res.status(429).json({
       error: 'Rate limit exceeded',
@@ -147,11 +154,19 @@ router.post('/chat', async (req, res) => {
       } catch {}
     }
 
-    // Send done event
+    // Send done event with environment tag
     res.write(`event: done\ndata: ${JSON.stringify({
       model: finalModel,
+      environment: env,
       usage: { prompt_tokens: totalTokensIn, completion_tokens: totalTokensOut },
     })}\n\n`);
+
+    // Log chat to environment-specific DB (fire-and-forget)
+    queryFor(env,
+      `INSERT INTO chat_messages (actor, role, content, model, tokens_in, tokens_out, environment)
+       VALUES ($1, 'user', $2, $3, $4, $5, $6)`,
+      [actor, message, finalModel, totalTokensIn, totalTokensOut, env]
+    ).catch(() => {});
 
   } catch (err) {
     if (err.name === 'AbortError') {

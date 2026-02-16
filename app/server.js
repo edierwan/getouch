@@ -7,8 +7,9 @@ const session  = require('express-session');
 const PgStore  = require('connect-pg-simple')(session);
 
 /* ── Database & Auth ────────────────────────────────────── */
-const { pool, initSchema }  = require('./lib/db');
+const { pool, endAll, initSchema }  = require('./lib/db');
 const { requireAuth, loadUser } = require('./lib/auth');
+const { resolveEnvironment }    = require('./lib/env-router');
 const passport        = require('./lib/passport');
 const authRoutes        = require('./routes/auth');
 const oauthRoutes       = require('./routes/oauth');
@@ -103,6 +104,9 @@ app.use(passport.session());
 app.use('/auth', authRoutes);
 app.use('/api/auth', oauthRoutes);
 app.use('/api/keys', apiKeysRoutes);
+
+/* ── Environment resolution for all /v1 routes ───────────── */
+app.use('/v1', resolveEnvironment);
 app.use('/v1', waGatewayRoutes);
 app.use('/v1', chatStreamRoutes);
 app.use('/v1', imageRoutes);
@@ -265,9 +269,39 @@ async function runMigrations() {
       require('path').join(__dirname, 'migrations', '001_ai_platform.sql'), 'utf8'
     );
     await pool.query(migrationSQL);
-    console.log('[db] AI platform migration applied');
+    console.log('[db] Migration 001 (AI platform) applied');
   } catch (err) {
-    console.error('[db] AI migration error (may already exist):', err.message);
+    console.error('[db] Migration 001 error (may already exist):', err.message);
+  }
+
+  // Migration 002 — Dual environment columns
+  try {
+    const migration002 = require('fs').readFileSync(
+      require('path').join(__dirname, 'migrations', '002_dual_environment.sql'), 'utf8'
+    );
+    await pool.query(migration002);
+    console.log('[db] Migration 002 (dual environment) applied');
+  } catch (err) {
+    console.error('[db] Migration 002 error (may already exist):', err.message);
+  }
+
+  // If dev pool exists, also apply schema migrations there
+  const { poolDev } = require('./lib/db');
+  if (poolDev) {
+    try {
+      const migrationSQL = require('fs').readFileSync(
+        require('path').join(__dirname, 'migrations', '001_ai_platform.sql'), 'utf8'
+      );
+      await poolDev.query(migrationSQL);
+
+      const migration002 = require('fs').readFileSync(
+        require('path').join(__dirname, 'migrations', '002_dual_environment.sql'), 'utf8'
+      );
+      await poolDev.query(migration002);
+      console.log('[db:dev] Migrations applied on dev pool');
+    } catch (err) {
+      console.error('[db:dev] Migration error (may already exist):', err.message);
+    }
   }
 }
 
@@ -295,7 +329,7 @@ initSchema()
       shuttingDown = true;
       console.log(`[app] ${signal} — closing`);
       server.close(() => {
-        pool.end().then(() => process.exit(0));
+        endAll().then(() => process.exit(0));
       });
       setTimeout(() => process.exit(1), 3000);
     }
