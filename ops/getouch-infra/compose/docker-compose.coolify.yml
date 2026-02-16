@@ -23,6 +23,8 @@ services:
     volumes:
       - /data/coolify:/data/coolify
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       # Only localhost — NOT public. Caddy handles ingress.
       - "127.0.0.1:8000:8000"
