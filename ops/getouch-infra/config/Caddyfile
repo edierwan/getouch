@@ -100,5 +100,5 @@ metrics.getouch.co:80 {
 # ── Coolify — Cloudflare Access protected ─────────────────────────
 coolify.getouch.co:80 {
 	import security_headers
-	reverse_proxy 127.0.0.1:8000
+	reverse_proxy coolify:8080
 }
