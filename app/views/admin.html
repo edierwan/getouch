@@ -95,10 +95,43 @@
             </label>
           </div>
 
-          <div class="ai-setting">
-            <label class="ai-setting__label">Free Images Per Day</label>
-            <p class="ai-setting__hint">Maximum image generations per user/IP per day.</p>
-            <input type="number" class="ai-setting__input" id="setting-max-images" value="5" min="0" max="100">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="ai-setting">
+              <label class="ai-setting__label">PROD — Images/Day</label>
+              <p class="ai-setting__hint">Daily image quota for production API keys.</p>
+              <input type="number" class="ai-setting__input" id="setting-max-images-prod" value="10" min="0" max="1000">
+            </div>
+            <div class="ai-setting">
+              <label class="ai-setting__label">DEV — Images/Day</label>
+              <p class="ai-setting__hint">Daily image quota for development API keys.</p>
+              <input type="number" class="ai-setting__input" id="setting-max-images-dev" value="50" min="0" max="1000">
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+            <div class="ai-setting">
+              <label class="ai-setting__label">PROD — Chat RPM</label>
+              <p class="ai-setting__hint">Chat requests per minute (production).</p>
+              <input type="number" class="ai-setting__input" id="setting-rate-chat-prod" value="15" min="1" max="1000">
+            </div>
+            <div class="ai-setting">
+              <label class="ai-setting__label">DEV — Chat RPM</label>
+              <p class="ai-setting__hint">Chat requests per minute (development).</p>
+              <input type="number" class="ai-setting__input" id="setting-rate-chat-dev" value="60" min="1" max="1000">
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+            <div class="ai-setting">
+              <label class="ai-setting__label">PROD — Image RPM</label>
+              <p class="ai-setting__hint">Image gen requests per minute (production).</p>
+              <input type="number" class="ai-setting__input" id="setting-rate-image-prod" value="5" min="1" max="1000">
+            </div>
+            <div class="ai-setting">
+              <label class="ai-setting__label">DEV — Image RPM</label>
+              <p class="ai-setting__hint">Image gen requests per minute (development).</p>
+              <input type="number" class="ai-setting__input" id="setting-rate-image-dev" value="20" min="1" max="1000">
+            </div>
           </div>
 
           <div style="margin-top: 16px;">
@@ -355,7 +388,12 @@ docker compose -f docker-compose.apps.yml ps</pre>
     var modelSelect  = document.getElementById('setting-default-model');
     var imageToggle  = document.getElementById('setting-enable-image');
     var toggleText   = document.getElementById('toggle-text');
-    var maxImages    = document.getElementById('setting-max-images');
+    var maxImagesProd = document.getElementById('setting-max-images-prod');
+    var maxImagesDev  = document.getElementById('setting-max-images-dev');
+    var rateChatProd  = document.getElementById('setting-rate-chat-prod');
+    var rateChatDev   = document.getElementById('setting-rate-chat-dev');
+    var rateImageProd = document.getElementById('setting-rate-image-prod');
+    var rateImageDev  = document.getElementById('setting-rate-image-dev');
     var saveBtn      = document.getElementById('save-ai-settings');
     var statusEl     = document.getElementById('settings-status');
 
@@ -371,7 +409,12 @@ docker compose -f docker-compose.apps.yml ps</pre>
             imageToggle.checked = !!s['ai.enable_image'];
             toggleText.textContent = imageToggle.checked ? 'Enabled' : 'Disabled';
           }
-          if (s['ai.image.max_per_day_free'] !== undefined) maxImages.value = s['ai.image.max_per_day_free'];
+          if (s['ai.image.max_per_day_free.prod'] !== undefined) maxImagesProd.value = s['ai.image.max_per_day_free.prod'];
+          if (s['ai.image.max_per_day_free.dev'] !== undefined) maxImagesDev.value = s['ai.image.max_per_day_free.dev'];
+          if (s['rate_limit.chat.prod'] !== undefined) rateChatProd.value = s['rate_limit.chat.prod'];
+          if (s['rate_limit.chat.dev'] !== undefined) rateChatDev.value = s['rate_limit.chat.dev'];
+          if (s['rate_limit.image.prod'] !== undefined) rateImageProd.value = s['rate_limit.image.prod'];
+          if (s['rate_limit.image.dev'] !== undefined) rateImageDev.value = s['rate_limit.image.dev'];
         })
         .catch(function() {});
     }
@@ -389,7 +432,12 @@ docker compose -f docker-compose.apps.yml ps</pre>
       var updates = [
         { key: 'ai.default_text_model', value: modelSelect.value },
         { key: 'ai.enable_image', value: imageToggle.checked },
-        { key: 'ai.image.max_per_day_free', value: parseInt(maxImages.value, 10) }
+        { key: 'ai.image.max_per_day_free.prod', value: parseInt(maxImagesProd.value, 10) },
+        { key: 'ai.image.max_per_day_free.dev', value: parseInt(maxImagesDev.value, 10) },
+        { key: 'rate_limit.chat.prod', value: parseInt(rateChatProd.value, 10) },
+        { key: 'rate_limit.chat.dev', value: parseInt(rateChatDev.value, 10) },
+        { key: 'rate_limit.image.prod', value: parseInt(rateImageProd.value, 10) },
+        { key: 'rate_limit.image.dev', value: parseInt(rateImageDev.value, 10) },
       ];
 
       Promise.all(updates.map(function(u) {

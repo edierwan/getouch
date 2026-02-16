@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Getouch</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    /* ── Layout ────────────────────────────────── */
+    .dash { padding: 32px 24px 64px; max-width: 960px; margin: 0 auto; position: relative; z-index: 1; }
+    .dash__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 16px; }
+    .dash__logo { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.04em; }
+    .dash__logo span { color: var(--accent); }
+    .dash__user { display: flex; align-items: center; gap: 12px; font-size: 0.875rem; color: var(--text-muted); }
+    .dash__user-name { color: var(--text-secondary); font-weight: 500; }
+    .dash__logout {
+      padding: 6px 14px; font-size: 0.8125rem; font-weight: 500;
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); transition: all 0.15s;
+    }
+    .dash__logout:hover { border-color: var(--red-border); color: var(--red); }
+
+    /* ── Welcome banner ──────────────────────── */
+    .welcome {
+      background: linear-gradient(135deg, var(--accent-glow), transparent 60%);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--radius-lg);
+      padding: 28px 32px;
+      margin-bottom: 32px;
+    }
+    .welcome h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 6px; }
+    .welcome p { color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; max-width: 600px; }
+
+    /* ── Section card ────────────────────────── */
+    .section-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .section-card__header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-card__title { font-size: 1rem; font-weight: 600; }
+    .section-card__body { padding: 24px; }
+
+    /* ── Create key button ───────────────────── */
+    .btn--create {
+      padding: 8px 18px; font-size: 0.8125rem; font-weight: 600;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font);
+      transition: background 0.15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn--create:hover { background: var(--accent-hover); }
+
+    /* ── Key list ─────────────────────────────── */
+    .key-list { display: flex; flex-direction: column; gap: 12px; }
+    .key-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.15s;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .key-item:hover { border-color: var(--border-hover); }
+    .key-item__info { flex: 1; min-width: 200px; }
+    .key-item__name { font-weight: 600; font-size: 0.9375rem; margin-bottom: 4px; }
+    .key-item__meta { display: flex; gap: 16px; font-size: 0.75rem; color: var(--text-dim); flex-wrap: wrap; }
+    .key-item__prefix { font-family: var(--font-mono); color: var(--text-muted); }
+    .key-item__actions { display: flex; gap: 8px; }
+    .btn--revoke {
+      padding: 6px 14px; font-size: 0.75rem; font-weight: 500;
+      background: transparent; border: 1px solid var(--red-border); color: var(--red);
+      border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); transition: all 0.15s;
+    }
+    .btn--revoke:hover { background: var(--red-bg); }
+    .badge--active { color: var(--green); }
+    .badge--revoked { color: var(--text-dim); text-decoration: line-through; }
+
+    /* ── Empty state ──────────────────────────── */
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      color: var(--text-muted); font-size: 0.875rem;
+    }
+    .empty-state__icon { font-size: 2rem; margin-bottom: 12px; opacity: 0.5; }
+
+    /* ── New key modal ────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 32px;
+      width: 100%; max-width: 480px;
+    }
+    .modal h3 { font-size: 1.125rem; font-weight: 600; margin-bottom: 4px; }
+    .modal p { color: var(--text-muted); font-size: 0.8125rem; margin-bottom: 20px; }
+    .modal .form-group { margin-bottom: 16px; }
+    .modal .form-group label {
+      display: block; font-size: 0.8125rem; font-weight: 500;
+      color: var(--text-secondary); margin-bottom: 6px;
+    }
+    .modal .form-group input, .modal .form-group select {
+      width: 100%; padding: 10px 14px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text); font-size: 0.9375rem; font-family: var(--font);
+    }
+    .modal .form-group input:focus, .modal .form-group select:focus {
+      outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .modal__actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+    .btn--cancel {
+      padding: 10px 20px; font-size: 0.875rem; font-weight: 500;
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); transition: all 0.15s;
+    }
+    .btn--cancel:hover { border-color: var(--border-hover); color: var(--text); }
+    .btn--confirm {
+      padding: 10px 20px; font-size: 0.875rem; font-weight: 600;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); transition: background 0.15s;
+    }
+    .btn--confirm:hover { background: var(--accent-hover); }
+
+    /* ── Key reveal box ──────────────────────── */
+    .key-reveal {
+      background: var(--bg); border: 1px solid var(--green-border);
+      border-radius: var(--radius); padding: 16px; margin-bottom: 16px;
+    }
+    .key-reveal__label { font-size: 0.75rem; color: var(--green); font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .key-reveal__value {
+      font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text);
+      word-break: break-all; background: var(--surface); padding: 10px 14px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .key-reveal__warning { font-size: 0.75rem; color: var(--yellow); }
+    .btn--copy {
+      padding: 6px 14px; font-size: 0.75rem; font-weight: 500;
+      background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green);
+      border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); transition: all 0.15s;
+    }
+    .btn--copy:hover { background: var(--green); color: #000; }
+
+    /* ── API Docs snippet ────────────────────── */
+    .docs-snippet {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+    }
+    .docs-snippet h4 { font-size: 0.875rem; font-weight: 600; margin-bottom: 12px; }
+    .docs-snippet pre {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px 18px;
+      font-family: var(--font-mono); font-size: 0.8125rem;
+      color: var(--text-secondary); overflow-x: auto; line-height: 1.7;
+    }
+    .docs-snippet code { color: var(--green); }
+
+    .loading { opacity: 0.5; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+
+  <div class="dash">
+    <!-- Header -->
+    <div class="dash__header">
+      <a href="/" class="dash__logo">ge<span>touch</span></a>
+      <div class="dash__user">
+        <span>Hello, <span class="dash__user-name" id="userName">—</span></span>
+        <form method="POST" action="/auth/logout" style="margin: 0;">
+          <button type="submit" class="dash__logout">Sign Out</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Welcome -->
+    <div class="welcome">
+      <h2>WhatsApp Gateway API</h2>
+      <p>
+        Create API keys to access the WhatsApp Gateway. Use Bearer authentication to send messages,
+        check connection status, and manage your WhatsApp session programmatically.
+      </p>
+    </div>
+
+    <!-- API Keys -->
+    <div class="section-card">
+      <div class="section-card__header">
+        <span class="section-card__title">API Keys</span>
+        <button class="btn--create" onclick="openCreateModal()">+ New Key</button>
+      </div>
+      <div class="section-card__body">
+        <div class="key-list" id="keyList">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-state__icon">🔑</div>
+            <p>No API keys yet. Create one to get started.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Start Docs -->
+    <div class="section-card">
+      <div class="section-card__header">
+        <span class="section-card__title">Quick Start</span>
+      </div>
+      <div class="section-card__body">
+        <div class="docs-snippet">
+          <h4>Send a WhatsApp message</h4>
+          <pre><code>curl</code> -X POST https://wa.getouch.co/v1/messages/send \
+  -H "Authorization: Bearer <code>gt_your_api_key</code>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "60123456789",
+    "message": "Hello from Getouch!"
+  }'</pre>
+        </div>
+        <div class="docs-snippet" style="margin-top: 16px;">
+          <h4>Check connection status</h4>
+          <pre><code>curl</code> https://wa.getouch.co/v1/wa/status \
+  -H "Authorization: Bearer <code>gt_your_api_key</code>"</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Key Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <h3>Create API Key</h3>
+      <p>Give your key a name so you can identify it later.</p>
+      <div class="form-group">
+        <label for="keyName">Key name</label>
+        <input type="text" id="keyName" placeholder="e.g. Serapod Production" autofocus>
+      </div>
+      <div class="form-group">
+        <label for="keyEnv">Environment</label>
+        <select id="keyEnv">
+          <option value="prod" selected>Production (NVMe)</option>
+          <option value="dev">Development (SSD)</option>
+        </select>
+        <p style="font-size:0.75rem;color:var(--text-dim);margin-top:4px;">
+          prod_ keys use production DB. dev_ keys use development DB. Cannot be changed after creation.
+        </p>
+      </div>
+      <div class="form-group">
+        <label for="keyExpiry">Expiration</label>
+        <select id="keyExpiry">
+          <option value="0">Never expires</option>
+          <option value="30">30 days</option>
+          <option value="90" selected>90 days</option>
+          <option value="365">1 year</option>
+        </select>
+      </div>
+      <div class="modal__actions">
+        <button class="btn--cancel" onclick="closeCreateModal()">Cancel</button>
+        <button class="btn--confirm" onclick="createKey()">Create Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Reveal Modal -->
+  <div class="modal-overlay" id="revealModal">
+    <div class="modal">
+      <h3>API Key Created</h3>
+      <p>Copy your key now — it won't be shown again.</p>
+      <div class="key-reveal">
+        <div class="key-reveal__label">Your API Key</div>
+        <div class="key-reveal__value" id="revealKeyValue">—</div>
+        <button class="btn--copy" onclick="copyKey()">📋 Copy to Clipboard</button>
+        <div class="key-reveal__warning" style="margin-top: 10px;">
+          ⚠️ This key will not be displayed again. Store it securely.
+        </div>
+      </div>
+      <div class="modal__actions">
+        <button class="btn--confirm" onclick="closeRevealModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const userNameEl = document.getElementById('userName');
+    const keyListEl = document.getElementById('keyList');
+    const emptyEl = document.getElementById('emptyState');
+
+    /* ── Load data ────────────────────────────── */
+    async function loadKeys() {
+      try {
+        const res = await fetch('/api/keys');
+        if (res.status === 401) {
+          window.location.href = '/auth/login';
+          return;
+        }
+        const data = await res.json();
+        renderKeys(data.keys || []);
+      } catch (err) {
+        console.error('Failed to load keys:', err);
+      }
+    }
+
+    async function loadUser() {
+      try {
+        const res = await fetch('/api/me');
+        if (res.ok) {
+          const data = await res.json();
+          userNameEl.textContent = data.name || data.email;
+        }
+      } catch {}
+    }
+
+    function renderKeys(keys) {
+      // Remove empty state
+      if (keys.length > 0) {
+        emptyEl.style.display = 'none';
+      } else {
+        emptyEl.style.display = '';
+        return;
+      }
+
+      // Remove old key items
+      keyListEl.querySelectorAll('.key-item').forEach(el => el.remove());
+
+      keys.forEach(key => {
+        const item = document.createElement('div');
+        item.className = 'key-item';
+        const isActive = key.is_active && !key.revoked_at;
+        const lastUsed = key.last_used_at
+          ? `Last used ${new Date(key.last_used_at).toLocaleDateString()}`
+          : 'Never used';
+        const created = new Date(key.created_at).toLocaleDateString();
+        const envBadge = key.environment === 'dev'
+          ? '<span style="color:var(--yellow);font-weight:600;">DEV</span>'
+          : '<span style="color:var(--green);font-weight:600;">PROD</span>';
+
+        item.innerHTML = `
+          <div class="key-item__info">
+            <div class="key-item__name">${escapeHtml(key.name)} ${envBadge}</div>
+            <div class="key-item__meta">
+              <span class="key-item__prefix">${escapeHtml(key.key_prefix)}••••••••</span>
+              <span>${created}</span>
+              <span>${lastUsed}</span>
+              <span class="${isActive ? 'badge--active' : 'badge--revoked'}">${isActive ? '● Active' : '○ Revoked'}</span>
+            </div>
+          </div>
+          <div class="key-item__actions">
+            ${isActive ? `<button class="btn--revoke" onclick="revokeKey('${key.id}')">Revoke</button>` : ''}
+          </div>
+        `;
+        keyListEl.appendChild(item);
+      });
+    }
+
+    /* ── Create key ───────────────────────────── */
+    function openCreateModal() {
+      document.getElementById('createModal').classList.add('active');
+      document.getElementById('keyName').value = '';
+      document.getElementById('keyName').focus();
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('active');
+    }
+
+    async function createKey() {
+      const name = document.getElementById('keyName').value.trim();
+      const expiresInDays = document.getElementById('keyExpiry').value;
+      const environment = document.getElementById('keyEnv').value;
+      if (!name) return alert('Key name is required');
+
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, expiresInDays: Number(expiresInDays) || 0, environment }),
+        });
+        const data = await res.json();
+        if (!res.ok) return alert(data.error || 'Failed to create key');
+
+        closeCreateModal();
+
+        // Show the plaintext key
+        document.getElementById('revealKeyValue').textContent = data.apiKey;
+        document.getElementById('revealModal').classList.add('active');
+
+        // Reload keys list
+        loadKeys();
+      } catch (err) {
+        alert('Error creating key: ' + err.message);
+      }
+    }
+
+    function closeRevealModal() {
+      document.getElementById('revealModal').classList.remove('active');
+    }
+
+    function copyKey() {
+      const key = document.getElementById('revealKeyValue').textContent;
+      navigator.clipboard.writeText(key).then(() => {
+        const btn = document.querySelector('.btn--copy');
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    }
+
+    /* ── Revoke key ───────────────────────────── */
+    async function revokeKey(id) {
+      if (!confirm('Revoke this API key? This cannot be undone.')) return;
+      try {
+        const res = await fetch(`/api/keys/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) return alert(data.error || 'Failed to revoke key');
+        loadKeys();
+      } catch (err) {
+        alert('Error revoking key: ' + err.message);
+      }
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    /* ── Init ─────────────────────────────────── */
+    loadUser();
+    loadKeys();
+  </script>
+</body>
+</html>
