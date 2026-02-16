@@ -23,9 +23,8 @@ services:
     volumes:
       - /data/postgres-ssd:/var/lib/postgresql/data
       - /opt/getouch/config/init-databases-staging.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
-    ports:
-      # Only localhost, not public. For debugging/pgAdmin from host.
-      - "127.0.0.1:5433:5432"
+    # No port mapping — only reachable from containers on getouch_data network.
+    # pgAdmin connects via internal DNS: postgres-ssd:5432
     networks:
       - getouch_data
     healthcheck:

@@ -1111,7 +1111,7 @@ docker exec postgres psql -U getouch -c "SELECT datname, pg_size_pretty(pg_datab
       <tr><td style="font-family:var(--mono);font-weight:600">node-exporter</td><td style="color:var(--tm)">mon</td><td style="font-family:var(--mono)">9100</td><td><span class="tag green">&#9679; Running</span></td></tr>
       <tr><td style="font-family:var(--mono);font-weight:600">cadvisor</td><td style="color:var(--tm)">mon</td><td style="font-family:var(--mono)">8080</td><td><span class="tag green">&#9679; Running</span></td></tr>
       <tr><td style="font-family:var(--mono);font-weight:600">coolify</td><td style="color:var(--tm)">coolify</td><td style="font-family:var(--mono)">8000</td><td><span class="tag yellow">&#9679; Planned</span></td></tr>
-      <tr><td style="font-family:var(--mono);font-weight:600">postgres-ssd</td><td style="color:var(--tm)">db-staging</td><td style="font-family:var(--mono)">5433</td><td><span class="tag yellow">&#9679; Planned</span></td></tr>
+      <tr><td style="font-family:var(--mono);font-weight:600">postgres-ssd</td><td style="color:var(--tm)">db-staging</td><td style="font-family:var(--mono)">5432 (internal)</td><td><span class="tag yellow">&#9679; Planned</span></td></tr>
     </tbody></table></div></div>
   </div>
   <div class="section">

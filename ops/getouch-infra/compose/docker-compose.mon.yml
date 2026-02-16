@@ -64,6 +64,8 @@ services:
       TZ: Asia/Kuala_Lumpur
     volumes:
       - /data/grafana:/var/lib/grafana
+      - /opt/getouch/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /opt/getouch/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - getouch_data
       - getouch_app
