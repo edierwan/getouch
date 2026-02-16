@@ -1,10 +1,12 @@
-# Core stack: Caddy reverse proxy + Cloudflare Tunnel + whoami (smoke test)
+# Core stack: Caddy reverse proxy + Cloudflare Tunnel
 # Usage: docker compose up -d
 
 services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    environment:
+      TZ: Asia/Kuala_Lumpur
     volumes:
       - /opt/getouch/config/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -14,8 +16,16 @@ services:
     networks:
       - getouch_ingress
       - getouch_app
-    depends_on:
-      - whoami
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -23,17 +33,23 @@ services:
     command: tunnel run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+      TZ: Asia/Kuala_Lumpur
     networks:
       - getouch_ingress
     depends_on:
-      - caddy
-
-  # Temporary smoke-test target — remove after real services are deployed
-  whoami:
-    image: traefik/whoami:latest
-    restart: unless-stopped
-    networks:
-      - getouch_app
+      caddy:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   caddy_data:

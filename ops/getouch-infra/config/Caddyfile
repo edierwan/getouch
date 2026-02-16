@@ -65,22 +65,19 @@ api.getouch.co:80 {
 	}
 }
 
-# ── pgAdmin — Cloudflare Access protected ─────────────────────────
+# ── pgAdmin — Cloudflare Access protected (SSO via auth proxy) ────
 db.getouch.co:80 {
 	import security_headers
-	import admin_csp
-	reverse_proxy pgadmin:5050
+
+	reverse_proxy pgadmin:5050 {
+		# Pass Cloudflare Access email as REMOTE_USER for auto-login
+		header_up REMOTE_USER "{http.request.header.Cf-Access-Authenticated-User-Email}"
+	}
 }
 
 # ── Grafana — Cloudflare Access protected (SSO via auth proxy) ────
 grafana.getouch.co:80 {
 	import security_headers
-
-	# Debug: visit grafana.getouch.co/_debug/headers to verify CF header
-	# REMOVE this block after confirming SSO works
-	handle /_debug/headers {
-		respond "cf_email={http.request.header.Cf-Access-Authenticated-User-Email} | cf_jwt={http.request.header.Cf-Access-Jwt-Assertion}" 200
-	}
 
 	handle {
 		reverse_proxy grafana:3000 {
@@ -102,3 +99,4 @@ coolify.getouch.co:80 {
 	import security_headers
 	reverse_proxy coolify:8080
 }
+

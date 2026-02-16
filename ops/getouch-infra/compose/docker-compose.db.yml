@@ -10,6 +10,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-getouch}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-getouch}
+      TZ: Asia/Kuala_Lumpur
     volumes:
       - /opt/getouch/data/postgres:/var/lib/postgresql/data
       - /opt/getouch/config/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
@@ -20,6 +21,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -29,19 +41,33 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@getouch.co}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-changeme}
       PGADMIN_LISTEN_PORT: 5050
+      TZ: Asia/Kuala_Lumpur
+      # SSO via Cloudflare Access — webserver auth mode
+      PGADMIN_CONFIG_AUTHENTICATION_SOURCES: "['webserver', 'internal']"
+      PGADMIN_CONFIG_WEBSERVER_REMOTE_USER: "'REMOTE_USER'"
+      PGADMIN_CONFIG_WEBSERVER_AUTO_CREATE_USER: "True"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:
-      - "127.0.0.1:5050:5050"   # local/Tailscale access only
+      - "127.0.0.1:5050:5050"
     networks:
+      - getouch_app
       - getouch_data
     depends_on:
       postgres:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   pgadmin_data:
 
 networks:
+  getouch_app:
+    external: true
   getouch_data:
     external: true
