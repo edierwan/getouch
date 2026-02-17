@@ -1096,7 +1096,7 @@ a { color: inherit; text-decoration: none; }
   width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 20px 24px 100px;
+  padding: 20px 24px 180px;
   scroll-behavior: smooth;
   text-align: left !important;
 }
@@ -1124,7 +1124,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .lc-msg {
-  display: flex; gap: 10px; max-width: 80%;
+  display: flex; gap: 10px; max-width: 100%;
   animation: msgIn .3s ease;
   text-align: left;
 }
