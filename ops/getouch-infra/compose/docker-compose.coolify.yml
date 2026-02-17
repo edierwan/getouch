@@ -18,6 +18,8 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Kuala_Lumpur
+      # Laravel app encryption key
+      APP_KEY: "base64:7h4kT3ZGvGzf7txJWQbwpYWwEdYe6V0t6QQ22pF38bc="
       # Database connection (coolify-db runs on getouch_app network)
       DB_HOST: coolify-db
       DB_PORT: "5432"
