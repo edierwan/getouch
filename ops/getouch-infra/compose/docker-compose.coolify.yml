@@ -37,11 +37,11 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       # Only localhost — NOT public. Caddy handles ingress.
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8000:8080"
     networks:
       - getouch_app
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 10s
       retries: 5
