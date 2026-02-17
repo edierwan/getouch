@@ -32,6 +32,7 @@ services:
       REDIS_PASSWORD: ""
     volumes:
       - /data/coolify:/data/coolify
+      - /data/coolify/ssh:/var/www/html/storage/app/ssh
       - /var/run/docker.sock:/var/run/docker.sock:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
