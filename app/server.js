@@ -22,6 +22,7 @@ const settingsRoutes    = require('./routes/settings');
 /* ── Config ─────────────────────────────────────────────── */
 const PORT    = 3000;
 const VERSION = process.env.VERSION || '1.0.0';
+const ASSET_V = VERSION + '.' + Date.now();  // cache-bust token
 const isDev   = process.env.NODE_ENV !== 'production';
 
 const INTERNAL = {
@@ -41,7 +42,7 @@ const VARS = {
   WA_URL:  process.env.PUBLIC_WA_URL  || 'https://wa.getouch.co',
   API_URL: process.env.PUBLIC_API_URL || 'https://api.getouch.co',
   DB_URL:  process.env.PUBLIC_DB_URL  || 'https://db.getouch.co',
-  VERSION,
+  VERSION: ASSET_V,
   YEAR: String(new Date().getFullYear()),
 };
 
@@ -77,7 +78,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: isDev ? 0 : '7d',
+  maxAge: isDev ? 0 : '1h',
   etag: true,
 }));
 
