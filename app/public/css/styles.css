@@ -1151,123 +1151,114 @@ a { color: inherit; text-decoration: none; }
 }
 .landing-input-bar__footer a { color: var(--accent); }
 
-/* ── Mode Dropdown (Gemini-style) ──────────────────────── */
-.mode-dropdown {
+/* ── Mode Selector (minimal + button with popover) ─────── */
+.mode-sel {
   position: relative;
 }
-.mode-dropdown__trigger {
+.mode-sel__btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  padding: 4px 10px 4px 6px;
+  background: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-full);
-  color: var(--text-muted);
-  font-size: .78rem;
-  font-weight: 600;
+  color: var(--text-dim);
+  font-size: .75rem;
+  font-weight: 500;
   font-family: var(--font);
   cursor: pointer;
   transition: all .2s;
   white-space: nowrap;
+  line-height: 1;
 }
-.mode-dropdown__trigger:hover {
-  border-color: var(--accent-border);
+.mode-sel__btn:hover {
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+.mode-sel--open .mode-sel__btn {
   color: var(--text);
   background: var(--surface-hover);
+  border-color: var(--border);
 }
-.mode-dropdown__emoji {
-  font-size: .9rem;
-  line-height: 1;
+.mode-sel__icon {
+  width: 18px; height: 18px;
+  opacity: .5;
+  transition: all .25s;
 }
-.mode-dropdown__text {
-  line-height: 1;
+.mode-sel--open .mode-sel__icon {
+  transform: rotate(45deg);
+  opacity: .8;
 }
-.mode-dropdown__chevron {
-  width: 12px; height: 12px;
-  transition: transform .25s;
-  opacity: .6;
-}
-.mode-dropdown--open .mode-dropdown__chevron {
-  transform: rotate(180deg);
+.mode-sel__label {
+  opacity: .8;
 }
 
-/* Dropdown menu - opens upward */
-.mode-dropdown__menu {
+/* Popover (opens upward) */
+.mode-sel__popover {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
-  min-width: 260px;
+  min-width: 200px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 -8px 32px rgba(0,0,0,.4), 0 0 0 1px rgba(255,255,255,.03);
-  padding: 6px;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.5);
+  padding: 4px;
   opacity: 0;
   visibility: hidden;
-  transform: translateY(8px) scale(.96);
-  transition: all .2s cubic-bezier(.4,0,.2,1);
+  transform: translateY(6px) scale(.97);
+  transition: all .18s cubic-bezier(.4,0,.2,1);
   z-index: 200;
 }
-.mode-dropdown--open .mode-dropdown__menu {
+.mode-sel--open .mode-sel__popover {
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
 }
 
-.mode-dropdown__item {
+.mode-sel__option {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   padding: 10px 12px;
   background: none;
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--text);
+  color: var(--text-muted);
+  font-size: .82rem;
+  font-weight: 500;
   font-family: var(--font);
   cursor: pointer;
-  transition: all .15s;
+  transition: all .12s;
   text-align: left;
 }
-.mode-dropdown__item:hover {
+.mode-sel__option:hover {
   background: var(--surface-hover);
-}
-.mode-dropdown__item-emoji {
-  font-size: 1.1rem;
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--accent-glow);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-.mode-dropdown__item-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.mode-dropdown__item-name {
-  font-size: .82rem;
-  font-weight: 600;
   color: var(--text);
 }
-.mode-dropdown__item-desc {
-  font-size: .7rem;
-  color: var(--text-dim);
-}
-.mode-dropdown__check {
-  width: 16px; height: 16px;
-  color: var(--accent);
-  opacity: 0;
-  transition: opacity .15s;
+.mode-sel__opt-icon {
+  font-size: 1rem;
   flex-shrink: 0;
 }
-.mode-dropdown__item--active .mode-dropdown__check {
-  opacity: 1;
+.mode-sel__opt-label {
+  flex: 1;
 }
-.mode-dropdown__item--active {
+.mode-sel__check {
+  width: 14px; height: 14px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity .12s;
+  flex-shrink: 0;
+}
+.mode-sel__option--active {
+  color: var(--text);
   background: var(--accent-glow);
+}
+.mode-sel__option--active .mode-sel__check {
+  opacity: 1;
 }
 
 .landing-quota {
