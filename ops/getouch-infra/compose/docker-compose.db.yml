@@ -42,11 +42,15 @@ services:
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-changeme}
       PGADMIN_LISTEN_PORT: 5050
       TZ: Asia/Kuala_Lumpur
-      # SSO via Cloudflare Access — webserver auth mode
+      # ── SSO via Cloudflare Access — webserver auth (no login page) ──
+      # Priority: webserver only → if header present, auto-login;
+      # falls back to internal only if header is truly empty.
       PGADMIN_CONFIG_AUTHENTICATION_SOURCES: "['webserver', 'internal']"
-      PGADMIN_CONFIG_WEBSERVER_REMOTE_USER: "'REMOTE_USER'"
+      PGADMIN_CONFIG_WEBSERVER_REMOTE_USER: "'X-Forwarded-User'"
       PGADMIN_CONFIG_WEBSERVER_AUTO_CREATE_USER: "True"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      # Auto-assign server role so new SSO users can manage databases
+      PGADMIN_CONFIG_SERVER_MODE: "True"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:

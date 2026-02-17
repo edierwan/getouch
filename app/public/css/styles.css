@@ -1432,3 +1432,89 @@ a { color: inherit; text-decoration: none; }
   margin-left: 12px;
   font-weight: 500;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Admin — Tab Navigation
+   ═══════════════════════════════════════════════════════════ */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 28px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all .2s;
+  font-family: var(--font);
+  white-space: nowrap;
+  line-height: 1;
+}
+.admin-tab svg {
+  width: 16px;
+  height: 16px;
+  opacity: .6;
+  flex-shrink: 0;
+}
+.admin-tab:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+.admin-tab:hover svg {
+  opacity: .9;
+}
+.admin-tab.active {
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+.admin-tab.active svg {
+  opacity: 1;
+  color: var(--accent);
+}
+.admin-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.admin-panel {
+  display: none;
+  animation: panelIn .25s ease;
+}
+.admin-panel.active {
+  display: block;
+}
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 600px) {
+  .admin-tabs {
+    gap: 2px;
+    padding: 3px;
+  }
+  .admin-tab {
+    padding: 8px 14px;
+    font-size: .75rem;
+    gap: 5px;
+  }
+  .admin-tab svg {
+    width: 14px;
+    height: 14px;
+  }
+}

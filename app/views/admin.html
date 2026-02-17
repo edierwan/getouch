@@ -19,293 +19,492 @@
     <!-- ─── Content ─────────────────────────────────────── -->
     <div class="admin-content admin-content--wide">
       <h1 class="admin-content__title">Dashboard</h1>
-      <p class="admin-content__subtitle">Protected by Cloudflare Access</p>
+      <p class="admin-content__subtitle">Protected by Cloudflare Access · v{{VERSION}}</p>
 
-      <!-- ── Service Health ─────────────────────────────── -->
-      <div class="ops-section">
-        <h2 class="ops-section__title">Service Health</h2>
-        <div class="health-grid" id="health-grid">
-
-          <div class="health-item" id="health-landing">
-            <div class="health-item__dot health-item__dot--checking"></div>
-            <div class="health-item__info">
-              <div class="health-item__name">Landing</div>
-              <div class="health-item__url">checking…</div>
-            </div>
-            <div class="health-item__latency" id="lat-landing">…</div>
-          </div>
-
-          <div class="health-item" id="health-bot">
-            <div class="health-item__dot health-item__dot--checking"></div>
-            <div class="health-item__info">
-              <div class="health-item__name">Bot / AI</div>
-              <div class="health-item__url">checking…</div>
-            </div>
-            <div class="health-item__latency" id="lat-bot">…</div>
-          </div>
-
-          <div class="health-item" id="health-wa">
-            <div class="health-item__dot health-item__dot--checking"></div>
-            <div class="health-item__info">
-              <div class="health-item__name">WhatsApp</div>
-              <div class="health-item__url">checking…</div>
-            </div>
-            <div class="health-item__latency" id="lat-wa">…</div>
-          </div>
-
-          <div class="health-item" id="health-api">
-            <div class="health-item__dot health-item__dot--checking"></div>
-            <div class="health-item__info">
-              <div class="health-item__name">API</div>
-              <div class="health-item__url">checking…</div>
-            </div>
-            <div class="health-item__latency" id="lat-api">…</div>
-          </div>
-
-          <div class="health-item" id="health-ollama">
-            <div class="health-item__dot health-item__dot--checking"></div>
-            <div class="health-item__info">
-              <div class="health-item__name">Ollama</div>
-              <div class="health-item__url">checking…</div>
-            </div>
-            <div class="health-item__latency" id="lat-ollama">…</div>
-          </div>
-
-          <div class="health-item" id="health-comfyui">
-            <div class="health-item__dot health-item__dot--checking"></div>
-            <div class="health-item__info">
-              <div class="health-item__name">ComfyUI</div>
-              <div class="health-item__url">checking…</div>
-            </div>
-            <div class="health-item__latency" id="lat-comfyui">…</div>
-          </div>
-
-        </div>
-
-        <!-- Health Details Box -->
-        <div class="info-box" id="health-info" style="margin-top:12px; display:none;">
-          <div class="info-box__title">⚠️ Offline Services Detected</div>
-          <p class="info-box__text" id="health-info-text"></p>
-        </div>
+      <!-- ── Tab Navigation ─────────────────────────────── -->
+      <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+        <button class="admin-tab active" role="tab" aria-selected="true" aria-controls="panel-overview" data-tab="overview">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+          Overview
+        </button>
+        <button class="admin-tab" role="tab" aria-selected="false" aria-controls="panel-ai" data-tab="ai">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          AI Config
+        </button>
+        <button class="admin-tab" role="tab" aria-selected="false" aria-controls="panel-services" data-tab="services">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+          Services
+        </button>
+        <button class="admin-tab" role="tab" aria-selected="false" aria-controls="panel-infra" data-tab="infra">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"/><circle cx="12" cy="12" r="3"/></svg>
+          Infrastructure
+        </button>
       </div>
 
-      <!-- ── AI Settings ───────────────────────────────── -->
-      <div class="ops-section">
-        <h2 class="ops-section__title">AI Settings</h2>
-        <div class="ai-settings" id="ai-settings">
+      <!-- ════════════════════════════════════════════════════
+           Tab 1: Overview
+           ════════════════════════════════════════════════════ -->
+      <div class="admin-panel active" id="panel-overview" role="tabpanel">
 
-          <div class="ai-setting">
-            <label class="ai-setting__label">Default Text Model</label>
-            <p class="ai-setting__hint">Used when users don't specify a model on the landing page.</p>
-            <select class="ai-setting__select" id="setting-default-model">
-              <option value="llama3.1:8b">llama3.1:8b (Fast)</option>
-              <option value="qwen2.5:14b-instruct">qwen2.5:14b-instruct (Smart)</option>
-            </select>
+        <!-- Service Health -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Service Health</h2>
+          <div class="health-grid" id="health-grid">
+
+            <div class="health-item" id="health-landing">
+              <div class="health-item__dot health-item__dot--checking"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">Landing</div>
+                <div class="health-item__url">checking…</div>
+              </div>
+              <div class="health-item__latency" id="lat-landing">…</div>
+            </div>
+
+            <div class="health-item" id="health-bot">
+              <div class="health-item__dot health-item__dot--checking"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">Bot / AI</div>
+                <div class="health-item__url">checking…</div>
+              </div>
+              <div class="health-item__latency" id="lat-bot">…</div>
+            </div>
+
+            <div class="health-item" id="health-wa">
+              <div class="health-item__dot health-item__dot--checking"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">WhatsApp</div>
+                <div class="health-item__url">checking…</div>
+              </div>
+              <div class="health-item__latency" id="lat-wa">…</div>
+            </div>
+
+            <div class="health-item" id="health-api">
+              <div class="health-item__dot health-item__dot--checking"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">API</div>
+                <div class="health-item__url">checking…</div>
+              </div>
+              <div class="health-item__latency" id="lat-api">…</div>
+            </div>
+
+            <div class="health-item" id="health-ollama">
+              <div class="health-item__dot health-item__dot--checking"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">Ollama</div>
+                <div class="health-item__url">checking…</div>
+              </div>
+              <div class="health-item__latency" id="lat-ollama">…</div>
+            </div>
+
+            <div class="health-item" id="health-comfyui">
+              <div class="health-item__dot health-item__dot--checking"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">ComfyUI</div>
+                <div class="health-item__url">checking…</div>
+              </div>
+              <div class="health-item__latency" id="lat-comfyui">…</div>
+            </div>
+
           </div>
 
-          <div class="ai-setting">
-            <label class="ai-setting__label">Enable Image Generation</label>
-            <p class="ai-setting__hint">Toggle SDXL image generation via ComfyUI for public users.</p>
-            <label class="ai-toggle">
-              <input type="checkbox" id="setting-enable-image" checked>
-              <span class="ai-toggle__slider"></span>
-              <span class="ai-toggle__text" id="toggle-text">Enabled</span>
-            </label>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            <div class="ai-setting">
-              <label class="ai-setting__label">PROD — Images/Day</label>
-              <p class="ai-setting__hint">Daily image quota for production API keys.</p>
-              <input type="number" class="ai-setting__input" id="setting-max-images-prod" value="10" min="0" max="1000">
-            </div>
-            <div class="ai-setting">
-              <label class="ai-setting__label">DEV — Images/Day</label>
-              <p class="ai-setting__hint">Daily image quota for development API keys.</p>
-              <input type="number" class="ai-setting__input" id="setting-max-images-dev" value="50" min="0" max="1000">
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
-            <div class="ai-setting">
-              <label class="ai-setting__label">PROD — Chat RPM</label>
-              <p class="ai-setting__hint">Chat requests per minute (production).</p>
-              <input type="number" class="ai-setting__input" id="setting-rate-chat-prod" value="15" min="1" max="1000">
-            </div>
-            <div class="ai-setting">
-              <label class="ai-setting__label">DEV — Chat RPM</label>
-              <p class="ai-setting__hint">Chat requests per minute (development).</p>
-              <input type="number" class="ai-setting__input" id="setting-rate-chat-dev" value="60" min="1" max="1000">
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
-            <div class="ai-setting">
-              <label class="ai-setting__label">PROD — Image RPM</label>
-              <p class="ai-setting__hint">Image gen requests per minute (production).</p>
-              <input type="number" class="ai-setting__input" id="setting-rate-image-prod" value="5" min="1" max="1000">
-            </div>
-            <div class="ai-setting">
-              <label class="ai-setting__label">DEV — Image RPM</label>
-              <p class="ai-setting__hint">Image gen requests per minute (development).</p>
-              <input type="number" class="ai-setting__input" id="setting-rate-image-dev" value="20" min="1" max="1000">
-            </div>
-          </div>
-
-          <div style="margin-top: 16px;">
-            <button class="btn btn--primary btn--sm" id="save-ai-settings">Save AI Settings</button>
-            <span class="ai-settings__status" id="settings-status"></span>
+          <!-- Health Details Box -->
+          <div class="info-box" id="health-info" style="margin-top:12px; display:none;">
+            <div class="info-box__title">⚠️ Offline Services Detected</div>
+            <p class="info-box__text" id="health-info-text"></p>
           </div>
         </div>
-      </div>
 
-      <!-- ── Platform Services (moved from landing) ────── -->
-      <div class="ops-section">
-        <h2 class="ops-section__title">Platform Services</h2>
-        <div class="admin-services-grid">
-
-          <a href="/admin/ops#whatsapp" class="admin-svc-card">
-            <div class="admin-svc-card__icon">💬</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">WhatsApp Gateway</h3>
-              <p class="admin-svc-card__desc">Multi-tenant messaging via Baileys</p>
-            </div>
-            <span class="badge badge--checking" data-service="wa"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
-          </a>
-
-          <a href="/admin/ops#bot" class="admin-svc-card">
-            <div class="admin-svc-card__icon">🤖</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">Bot / AI API</h3>
-              <p class="admin-svc-card__desc">Ollama qwen2.5 conversational AI</p>
-            </div>
-            <span class="badge badge--checking" data-service="bot"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
-          </a>
-
-          <a href="/admin/ops#api" class="admin-svc-card">
-            <div class="admin-svc-card__icon">⚡</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">REST API</h3>
-              <p class="admin-svc-card__desc">Programmatic access to platform features</p>
-            </div>
-            <span class="badge badge--checking" data-service="api"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
-          </a>
-
-          <a href="{{DB_URL}}" target="_blank" rel="noopener" class="admin-svc-card">
-            <div class="admin-svc-card__icon">🗄️</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">Database (pgAdmin)</h3>
-              <p class="admin-svc-card__desc">PostgreSQL management</p>
-            </div>
-            <span class="badge badge--access">🔒 Access Required</span>
-          </a>
-
-          <a href="https://grafana.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
-            <div class="admin-svc-card__icon">📊</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">Grafana</h3>
-              <p class="admin-svc-card__desc">Dashboards and metrics visualization</p>
-            </div>
-            <span class="badge badge--access">🔒 SSO Access</span>
-          </a>
-
-          <a href="https://metrics.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
-            <div class="admin-svc-card__icon">📈</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">Prometheus</h3>
-              <p class="admin-svc-card__desc">Metrics collection and alerting</p>
-            </div>
-            <span class="badge badge--access">🔒 SSO Access</span>
-          </a>
-
-          <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
-            <div class="admin-svc-card__icon">🚀</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">Coolify</h3>
-              <p class="admin-svc-card__desc">CI/CD &amp; deployment manager</p>
-            </div>
-            <span class="badge badge--access">🔒 SSO Access</span>
-          </a>
-
-          <a href="/" class="admin-svc-card">
-            <div class="admin-svc-card__icon">🛡️</div>
-            <div class="admin-svc-card__body">
-              <h3 class="admin-svc-card__title">Admin Portal</h3>
-              <p class="admin-svc-card__desc">This dashboard</p>
-            </div>
-            <span class="badge badge--ok"><span class="badge__dot"></span>Active</span>
-          </a>
-
-        </div>
-      </div>
-
-      <!-- ── Quick Links ────────────────────────────────── -->
-      <div class="ops-section">
-        <h2 class="ops-section__title">Quick Links</h2>
-        <div class="health-grid">
-          <a href="{{DB_URL}}" target="_blank" rel="noopener" class="health-item health-item--link">
-            <div class="health-item__dot health-item__dot--ok"></div>
-            <div class="health-item__info">
-              <div class="health-item__name" style="color:var(--accent)">pgAdmin</div>
-              <div class="health-item__url">db.getouch.co · Access Required</div>
-            </div>
-          </a>
-          <a href="/admin/ops" class="health-item health-item--link">
-            <div class="health-item__dot health-item__dot--ok"></div>
-            <div class="health-item__info">
-              <div class="health-item__name" style="color:var(--accent)">Ops Dashboard</div>
-              <div class="health-item__url">Service links &amp; tools</div>
-            </div>
-          </a>
-          <a href="{{BOT_URL}}/health" target="_blank" rel="noopener" class="health-item health-item--link">
-            <div class="health-item__dot health-item__dot--ok"></div>
-            <div class="health-item__info">
-              <div class="health-item__name" style="color:var(--accent)">Bot Health</div>
-              <div class="health-item__url">bot.getouch.co/health</div>
-            </div>
-          </a>
-          <a href="{{WA_URL}}/health" target="_blank" rel="noopener" class="health-item health-item--link">
-            <div class="health-item__dot health-item__dot--ok"></div>
-            <div class="health-item__info">
-              <div class="health-item__name" style="color:var(--accent)">WA Health</div>
-              <div class="health-item__url">wa.getouch.co/health</div>
-            </div>
-          </a>
-          <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
-            <div class="health-item__dot health-item__dot--ok"></div>
-            <div class="health-item__info">
-              <div class="health-item__name" style="color:var(--accent)">Coolify</div>
-              <div class="health-item__url">coolify.getouch.co · SSO Access</div>
-            </div>
-          </a>
-          <a href="https://grafana.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
-            <div class="health-item__dot health-item__dot--ok"></div>
-            <div class="health-item__info">
-              <div class="health-item__name" style="color:var(--accent)">Grafana</div>
-              <div class="health-item__url">grafana.getouch.co · SSO Access</div>
-            </div>
-          </a>
-        </div>
-      </div>
-
-      <!-- ── Recent Activity / Event Log ─────────────────── -->
-      <div class="ops-section">
-        <h2 class="ops-section__title">Recent Activity</h2>
-        <div class="activity-log" id="activity-log">
-          <div class="activity-item">
-            <div class="activity-item__time" id="activity-time">—</div>
-            <div class="activity-item__body">
-              <div class="activity-item__title">Health check performed</div>
-              <div class="activity-item__desc" id="activity-summary">Checking services…</div>
+        <!-- Recent Activity / Event Log -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Recent Activity</h2>
+          <div class="activity-log" id="activity-log">
+            <div class="activity-item">
+              <div class="activity-item__time" id="activity-time">—</div>
+              <div class="activity-item__body">
+                <div class="activity-item__title">Health check performed</div>
+                <div class="activity-item__desc" id="activity-summary">Checking services…</div>
+              </div>
             </div>
           </div>
         </div>
+
       </div>
 
-      <!-- ── Log Commands ───────────────────────────────── -->
-      <div class="ops-section">
-        <h2 class="ops-section__title">Useful Commands</h2>
-        <pre class="code-block">ssh deploy@100.103.248.15
+      <!-- ════════════════════════════════════════════════════
+           Tab 2: AI Config
+           ════════════════════════════════════════════════════ -->
+      <div class="admin-panel" id="panel-ai" role="tabpanel">
+
+        <div class="ops-section">
+          <h2 class="ops-section__title">AI Settings</h2>
+          <div class="ai-settings" id="ai-settings">
+
+            <div class="ai-setting">
+              <label class="ai-setting__label">Default Text Model</label>
+              <p class="ai-setting__hint">Used when users don't specify a model on the landing page.</p>
+              <select class="ai-setting__select" id="setting-default-model">
+                <option value="llama3.1:8b">llama3.1:8b (Fast)</option>
+                <option value="qwen2.5:14b-instruct">qwen2.5:14b-instruct (Smart)</option>
+              </select>
+            </div>
+
+            <div class="ai-setting">
+              <label class="ai-setting__label">Enable Image Generation</label>
+              <p class="ai-setting__hint">Toggle SDXL image generation via ComfyUI for public users.</p>
+              <label class="ai-toggle">
+                <input type="checkbox" id="setting-enable-image" checked>
+                <span class="ai-toggle__slider"></span>
+                <span class="ai-toggle__text" id="toggle-text">Enabled</span>
+              </label>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+              <div class="ai-setting">
+                <label class="ai-setting__label">PROD — Images/Day</label>
+                <p class="ai-setting__hint">Daily image quota for production API keys.</p>
+                <input type="number" class="ai-setting__input" id="setting-max-images-prod" value="10" min="0" max="1000">
+              </div>
+              <div class="ai-setting">
+                <label class="ai-setting__label">DEV — Images/Day</label>
+                <p class="ai-setting__hint">Daily image quota for development API keys.</p>
+                <input type="number" class="ai-setting__input" id="setting-max-images-dev" value="50" min="0" max="1000">
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+              <div class="ai-setting">
+                <label class="ai-setting__label">PROD — Chat RPM</label>
+                <p class="ai-setting__hint">Chat requests per minute (production).</p>
+                <input type="number" class="ai-setting__input" id="setting-rate-chat-prod" value="15" min="1" max="1000">
+              </div>
+              <div class="ai-setting">
+                <label class="ai-setting__label">DEV — Chat RPM</label>
+                <p class="ai-setting__hint">Chat requests per minute (development).</p>
+                <input type="number" class="ai-setting__input" id="setting-rate-chat-dev" value="60" min="1" max="1000">
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+              <div class="ai-setting">
+                <label class="ai-setting__label">PROD — Image RPM</label>
+                <p class="ai-setting__hint">Image gen requests per minute (production).</p>
+                <input type="number" class="ai-setting__input" id="setting-rate-image-prod" value="5" min="1" max="1000">
+              </div>
+              <div class="ai-setting">
+                <label class="ai-setting__label">DEV — Image RPM</label>
+                <p class="ai-setting__hint">Image gen requests per minute (development).</p>
+                <input type="number" class="ai-setting__input" id="setting-rate-image-dev" value="20" min="1" max="1000">
+              </div>
+            </div>
+
+            <div style="margin-top: 16px;">
+              <button class="btn btn--primary btn--sm" id="save-ai-settings">Save AI Settings</button>
+              <span class="ai-settings__status" id="settings-status"></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ════════════════════════════════════════════════════
+           Tab 3: Services
+           ════════════════════════════════════════════════════ -->
+      <div class="admin-panel" id="panel-services" role="tabpanel">
+
+        <!-- Communication -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">💬 Communication</h2>
+          <div class="admin-services-grid">
+            <a href="/admin/ops#whatsapp" class="admin-svc-card">
+              <div class="admin-svc-card__icon">💬</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">WhatsApp Gateway</h3>
+                <p class="admin-svc-card__desc">Multi-tenant messaging via Baileys</p>
+              </div>
+              <span class="badge badge--checking" data-service="wa"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- AI & Compute -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">🤖 AI &amp; Compute</h2>
+          <div class="admin-services-grid">
+            <a href="/admin/ops#bot" class="admin-svc-card">
+              <div class="admin-svc-card__icon">🤖</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Bot / AI API</h3>
+                <p class="admin-svc-card__desc">Ollama conversational AI service</p>
+              </div>
+              <span class="badge badge--checking" data-service="bot"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </a>
+            <div class="admin-svc-card admin-svc-card--disabled">
+              <div class="admin-svc-card__icon">🧠</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Ollama (LLM)</h3>
+                <p class="admin-svc-card__desc">Large language model inference engine</p>
+              </div>
+              <span class="badge badge--checking" data-service="ollama"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </div>
+            <div class="admin-svc-card admin-svc-card--disabled">
+              <div class="admin-svc-card__icon">🎨</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">ComfyUI</h3>
+                <p class="admin-svc-card__desc">SDXL image generation pipeline</p>
+              </div>
+              <span class="badge badge--checking" data-service="comfyui"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- APIs -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">⚡ APIs</h2>
+          <div class="admin-services-grid">
+            <a href="/admin/ops#api" class="admin-svc-card">
+              <div class="admin-svc-card__icon">⚡</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">REST API</h3>
+                <p class="admin-svc-card__desc">Programmatic access to platform features</p>
+              </div>
+              <span class="badge badge--checking" data-service="api"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Database -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">🗄️ Database</h2>
+          <div class="admin-services-grid">
+            <a href="{{DB_URL}}" target="_blank" rel="noopener" class="admin-svc-card">
+              <div class="admin-svc-card__icon">🗄️</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">pgAdmin</h3>
+                <p class="admin-svc-card__desc">PostgreSQL management · SSO auto-login</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>CF Protected</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Monitoring -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">📊 Monitoring</h2>
+          <div class="admin-services-grid">
+            <a href="https://grafana.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
+              <div class="admin-svc-card__icon">📊</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Grafana</h3>
+                <p class="admin-svc-card__desc">Dashboards &amp; metrics · SSO auto-login</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>CF Protected</span>
+            </a>
+            <a href="https://metrics.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
+              <div class="admin-svc-card__icon">📈</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Prometheus</h3>
+                <p class="admin-svc-card__desc">Metrics collection &amp; alerting</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>CF Protected</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- DevOps & CI/CD -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">🚀 DevOps &amp; CI/CD</h2>
+          <div class="admin-services-grid">
+            <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
+              <div class="admin-svc-card__icon">🚀</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Coolify</h3>
+                <p class="admin-svc-card__desc">CI/CD &amp; deployment manager</p>
+              </div>
+              <span class="badge badge--access">Own Login</span>
+            </a>
+          </div>
+          <div class="info-box" style="margin-top:12px">
+            <p class="info-box__text">
+              ℹ️ Coolify uses its own authentication system (Laravel). Cloudflare Access protects the route, 
+              but you still need to log in with your Coolify credentials once. The session persists for your browser.
+            </p>
+          </div>
+        </div>
+
+        <!-- Platform -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">🛡️ Platform</h2>
+          <div class="admin-services-grid">
+            <a href="/" class="admin-svc-card">
+              <div class="admin-svc-card__icon">🌐</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Landing Page</h3>
+                <p class="admin-svc-card__desc">Public landing with AI chat</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>Active</span>
+            </a>
+            <a href="/admin/" class="admin-svc-card">
+              <div class="admin-svc-card__icon">🛡️</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Admin Portal</h3>
+                <p class="admin-svc-card__desc">This dashboard</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>Active</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ════════════════════════════════════════════════════
+           Tab 4: Infrastructure
+           ════════════════════════════════════════════════════ -->
+      <div class="admin-panel" id="panel-infra" role="tabpanel">
+
+        <!-- Quick Links -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Quick Links</h2>
+          <div class="health-grid">
+            <a href="{{DB_URL}}" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">pgAdmin</div>
+                <div class="health-item__url">db.getouch.co</div>
+              </div>
+            </a>
+            <a href="/admin/ops" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">Ops Dashboard</div>
+                <div class="health-item__url">Service links &amp; tools</div>
+              </div>
+            </a>
+            <a href="{{BOT_URL}}/health" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">Bot Health</div>
+                <div class="health-item__url">bot.getouch.co/health</div>
+              </div>
+            </a>
+            <a href="{{WA_URL}}/health" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">WA Health</div>
+                <div class="health-item__url">wa.getouch.co/health</div>
+              </div>
+            </a>
+            <a href="https://coolify.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">Coolify</div>
+                <div class="health-item__url">coolify.getouch.co</div>
+              </div>
+            </a>
+            <a href="https://grafana.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">Grafana</div>
+                <div class="health-item__url">grafana.getouch.co</div>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- Email Forwarding -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">📧 Email Forwarding</h2>
+          <div class="ops-card">
+            <div class="info-box" style="border-left-color: var(--blue);">
+              <div class="info-box__title">Cloudflare Email Routing</div>
+              <p class="info-box__text">
+                Email forwarding for <strong>@getouch.co</strong> is managed via Cloudflare Email Routing.
+                Create custom addresses (e.g. support@getouch.co → your-inbox@gmail.com) and catch-all rules.
+              </p>
+            </div>
+            <div class="ops-links" style="margin-top:12px;">
+              <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/email/routing/routes" target="_blank" rel="noopener" class="ops-link">
+                <span class="ops-link__label">📧 Manage Email Routes</span>
+                <span class="ops-link__url">Cloudflare Dashboard → Email Routing</span>
+                <span class="badge badge--access">CF Dashboard</span>
+              </a>
+              <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/email/routing/catch-all" target="_blank" rel="noopener" class="ops-link">
+                <span class="ops-link__label">📨 Catch-All Rules</span>
+                <span class="ops-link__url">Configure catch-all email forwarding</span>
+                <span class="badge badge--access">CF Dashboard</span>
+              </a>
+              <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/dns" target="_blank" rel="noopener" class="ops-link">
+                <span class="ops-link__label">🌐 DNS Records</span>
+                <span class="ops-link__url">Manage DNS for getouch.co</span>
+                <span class="badge badge--access">CF Dashboard</span>
+              </a>
+            </div>
+            <div style="margin-top:12px; padding:12px 16px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);">
+              <p style="font-size:.78rem; color:var(--text-muted); margin-bottom:8px;">
+                <strong>Current forwarding setup:</strong>
+              </p>
+              <table style="width:100%; font-size:.75rem; color:var(--text-muted); border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">From</th>
+                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">To</th>
+                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px; font-family:var(--font-mono);">admin@getouch.co</td>
+                    <td style="padding:6px 8px;">→ Primary inbox</td>
+                    <td style="padding:6px 8px;"><span class="badge badge--ok" style="font-size:.65rem;"><span class="badge__dot"></span>Active</span></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px; font-family:var(--font-mono);">noreply@getouch.co</td>
+                    <td style="padding:6px 8px;">→ SMTP (outbound only)</td>
+                    <td style="padding:6px 8px;"><span class="badge badge--ok" style="font-size:.65rem;"><span class="badge__dot"></span>Active</span></td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 8px; font-family:var(--font-mono);">*@getouch.co</td>
+                    <td style="padding:6px 8px;">→ Catch-all (if configured)</td>
+                    <td style="padding:6px 8px;"><span class="badge badge--tailscale" style="font-size:.65rem;">Check CF</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- SSO Status -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">🔐 SSO &amp; Access Status</h2>
+          <div class="ops-card">
+            <div class="ops-links">
+              <div class="ops-link">
+                <span class="ops-link__label">Grafana</span>
+                <span class="ops-link__url">Auth proxy via X-WEBAUTH-USER header</span>
+                <span class="badge badge--ok"><span class="badge__dot"></span>Auto-login</span>
+              </div>
+              <div class="ops-link">
+                <span class="ops-link__label">pgAdmin</span>
+                <span class="ops-link__url">Webserver auth via REMOTE_USER header</span>
+                <span class="badge badge--ok"><span class="badge__dot"></span>Auto-login</span>
+              </div>
+              <div class="ops-link">
+                <span class="ops-link__label">Prometheus</span>
+                <span class="ops-link__url">No internal auth · CF Access gate only</span>
+                <span class="badge badge--ok"><span class="badge__dot"></span>No login</span>
+              </div>
+              <div class="ops-link">
+                <span class="ops-link__label">Coolify</span>
+                <span class="ops-link__url">Own Laravel auth · CF Access + own login</span>
+                <span class="badge badge--access">Own Login</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Useful Commands -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">🖥️ Server Commands</h2>
+          <pre class="code-block">ssh deploy@100.103.248.15
 cd /opt/getouch/compose
 docker compose logs -f caddy --tail 100
 docker compose -f docker-compose.apps.yml logs -f --tail 100
@@ -316,7 +515,15 @@ docker compose -f docker-compose.apps.yml restart wa
 docker compose -f docker-compose.apps.yml restart api
 
 # Check service status
-docker compose -f docker-compose.apps.yml ps</pre>
+docker compose -f docker-compose.apps.yml ps
+
+# Restart pgAdmin (after SSO config change)
+docker compose -f docker-compose.db.yml restart pgadmin
+
+# Check Caddy logs (for SSO header issues)
+docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
+        </div>
+
       </div>
     </div>
   </div>
@@ -326,7 +533,51 @@ docker compose -f docker-compose.apps.yml ps</pre>
   (function() {
     'use strict';
 
-    /* ── Enhanced admin health checking ─────────────────── */
+    /* ── Tab switching ─────────────────────────────────── */
+    var tabs   = document.querySelectorAll('.admin-tab');
+    var panels = document.querySelectorAll('.admin-panel');
+
+    // Restore last active tab from sessionStorage
+    var savedTab = sessionStorage.getItem('admin_active_tab') || 'overview';
+
+    function activateTab(tabName) {
+      tabs.forEach(function(t) {
+        var isActive = t.dataset.tab === tabName;
+        t.classList.toggle('active', isActive);
+        t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      panels.forEach(function(p) {
+        p.classList.toggle('active', p.id === 'panel-' + tabName);
+      });
+      sessionStorage.setItem('admin_active_tab', tabName);
+    }
+
+    tabs.forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        activateTab(this.dataset.tab);
+      });
+    });
+
+    // Restore saved tab
+    activateTab(savedTab);
+
+    // Support keyboard navigation between tabs
+    document.querySelector('.admin-tabs').addEventListener('keydown', function(e) {
+      var tabArr = Array.from(tabs);
+      var idx = tabArr.indexOf(document.activeElement);
+      if (idx === -1) return;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var nextIdx = e.key === 'ArrowRight'
+          ? (idx + 1) % tabArr.length
+          : (idx - 1 + tabArr.length) % tabArr.length;
+        tabArr[nextIdx].focus();
+        activateTab(tabArr[nextIdx].dataset.tab);
+      }
+    });
+
+    /* ── Health checking ───────────────────────────────── */
     function checkHealth() {
       fetch('/api/status')
         .then(function(r) { return r.json(); })

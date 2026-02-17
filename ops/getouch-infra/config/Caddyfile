@@ -70,8 +70,13 @@ db.getouch.co:80 {
 	import security_headers
 
 	reverse_proxy pgadmin:5050 {
-		# Pass Cloudflare Access email as REMOTE_USER for auto-login
+		# Standard header name (hyphens, no underscores) for reliable passthrough
+		header_up X-Forwarded-User "{http.request.header.Cf-Access-Authenticated-User-Email}"
+		# Also pass REMOTE_USER for compatibility
 		header_up REMOTE_USER "{http.request.header.Cf-Access-Authenticated-User-Email}"
+		# Let pgAdmin know it's behind a proxy
+		header_up X-Forwarded-Proto "https"
+		header_up X-Script-Name ""
 	}
 }
 
@@ -95,6 +100,8 @@ metrics.getouch.co:80 {
 }
 
 # ── Coolify — Cloudflare Access protected ─────────────────────────
+# NOTE: Coolify has its own Laravel auth system. CF Access protects the route,
+# but users must log in to Coolify once. Session persists in browser.
 coolify.getouch.co:80 {
 	import security_headers
 	reverse_proxy coolify:8080

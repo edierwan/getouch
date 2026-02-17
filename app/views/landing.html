@@ -69,15 +69,17 @@
           autocomplete="off"
           maxlength="4000">
         <div class="landing-input-bar__bottom">
-          <!-- Mode Dropdown -->
-          <div class="mode-dropdown" id="mode-dropdown">
-            <button class="mode-dropdown__trigger" id="mode-trigger" type="button" title="Switch mode">
+          <!-- Mode Selector (dark popover) -->
+          <div class="mode-dropdown" id="mode-dropdown" role="listbox" aria-label="Select mode">
+            <button class="mode-dropdown__trigger" id="mode-trigger" type="button" title="Switch mode"
+                    aria-haspopup="listbox" aria-expanded="false">
               <span class="mode-dropdown__emoji" id="mode-emoji">💬</span>
               <span class="mode-dropdown__text" id="mode-text">Getouch AI</span>
               <svg class="mode-dropdown__chevron" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
             </button>
-            <div class="mode-dropdown__menu" id="mode-menu">
-              <button class="mode-dropdown__item mode-dropdown__item--active" data-mode="text" type="button">
+            <div class="mode-dropdown__menu" id="mode-menu" role="menu">
+              <button class="mode-dropdown__item mode-dropdown__item--active" data-mode="text" type="button"
+                      role="menuitemradio" aria-checked="true" tabindex="0">
                 <span class="mode-dropdown__item-emoji">💬</span>
                 <div class="mode-dropdown__item-info">
                   <span class="mode-dropdown__item-name">Getouch AI</span>
@@ -85,7 +87,8 @@
                 </div>
                 <svg class="mode-dropdown__check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
               </button>
-              <button class="mode-dropdown__item" data-mode="image" type="button">
+              <button class="mode-dropdown__item" data-mode="image" type="button"
+                      role="menuitemradio" aria-checked="false" tabindex="-1">
                 <span class="mode-dropdown__item-emoji">🎨</span>
                 <div class="mode-dropdown__item-info">
                   <span class="mode-dropdown__item-name">Getouch Image</span>
@@ -135,56 +138,134 @@
     var quotaText   = document.getElementById('quota-text');
 
     var isStreaming = false;
-    var currentMode = 'text';
+    var currentMode = localStorage.getItem('getouch_mode') || 'text';
     var abortCtrl   = null;
 
+    /* ── Restore saved mode on load ─────────────────────── */
+    (function restoreMode() {
+      if (currentMode === 'image') {
+        var imgItem = modeMenu.querySelector('[data-mode="image"]');
+        var txtItem = modeMenu.querySelector('[data-mode="text"]');
+        if (imgItem && txtItem) {
+          txtItem.classList.remove('mode-dropdown__item--active');
+          txtItem.setAttribute('aria-checked', 'false');
+          txtItem.tabIndex = -1;
+          imgItem.classList.add('mode-dropdown__item--active');
+          imgItem.setAttribute('aria-checked', 'true');
+          imgItem.tabIndex = 0;
+          modeEmoji.textContent = '🎨';
+          modeText.textContent = 'Getouch Image';
+          input.placeholder = 'Describe the image you want to generate...';
+          input.maxLength = 1000;
+          quotaBadge.style.display = '';
+        }
+      }
+    })();
+
     /* ── Custom dropdown ───────────────────────────────── */
+    function openMenu() {
+      modeDropdown.classList.add('mode-dropdown--open');
+      modeTrigger.setAttribute('aria-expanded', 'true');
+      // Focus active item
+      var active = modeMenu.querySelector('.mode-dropdown__item--active');
+      if (active) active.focus();
+    }
+
+    function closeMenu() {
+      modeDropdown.classList.remove('mode-dropdown--open');
+      modeTrigger.setAttribute('aria-expanded', 'false');
+    }
+
     modeTrigger.addEventListener('click', function(e) {
       e.stopPropagation();
-      modeDropdown.classList.toggle('mode-dropdown--open');
+      var isOpen = modeDropdown.classList.contains('mode-dropdown--open');
+      if (isOpen) { closeMenu(); } else { openMenu(); }
+    });
+
+    // Open on Enter/Space when trigger is focused
+    modeTrigger.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openMenu();
+      }
     });
 
     // Close menu when clicking outside
     document.addEventListener('click', function(e) {
       if (!modeDropdown.contains(e.target)) {
-        modeDropdown.classList.remove('mode-dropdown--open');
+        closeMenu();
+      }
+    });
+
+    // ESC key closes menu from anywhere
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && modeDropdown.classList.contains('mode-dropdown--open')) {
+        closeMenu();
+        modeTrigger.focus();
+      }
+    });
+
+    // Arrow key navigation inside menu
+    modeMenu.addEventListener('keydown', function(e) {
+      var items = Array.from(modeMenu.querySelectorAll('.mode-dropdown__item'));
+      var idx = items.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        items[(idx + 1) % items.length].focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items[(idx - 1 + items.length) % items.length].focus();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (document.activeElement && document.activeElement.dataset.mode) {
+          document.activeElement.click();
+        }
       }
     });
 
     // Handle item selection
-    modeMenu.querySelectorAll('.mode-dropdown__item').forEach(function(item) {
-      item.addEventListener('click', function() {
-        var mode = this.dataset.mode;
-        currentMode = mode;
+    function selectMode(item) {
+      var mode = item.dataset.mode;
+      currentMode = mode;
 
-        // Update active state
-        modeMenu.querySelectorAll('.mode-dropdown__item').forEach(function(el) {
-          el.classList.remove('mode-dropdown__item--active');
-        });
-        this.classList.add('mode-dropdown__item--active');
-
-        // Update trigger display
-        var emoji = this.querySelector('.mode-dropdown__item-emoji').textContent;
-        var name  = this.querySelector('.mode-dropdown__item-name').textContent;
-        modeEmoji.textContent = emoji;
-        modeText.textContent  = name;
-
-        // Close menu
-        modeDropdown.classList.remove('mode-dropdown--open');
-
-        // Update input state
-        if (currentMode === 'image') {
-          input.placeholder = 'Describe the image you want to generate...';
-          input.maxLength = 1000;
-          quotaBadge.style.display = '';
-          loadQuota();
-        } else {
-          input.placeholder = 'Ask about our services or anything else...';
-          input.maxLength = 4000;
-          quotaBadge.style.display = 'none';
-        }
-        input.focus();
+      // Update active state + ARIA
+      modeMenu.querySelectorAll('.mode-dropdown__item').forEach(function(el) {
+        el.classList.remove('mode-dropdown__item--active');
+        el.setAttribute('aria-checked', 'false');
+        el.tabIndex = -1;
       });
+      item.classList.add('mode-dropdown__item--active');
+      item.setAttribute('aria-checked', 'true');
+      item.tabIndex = 0;
+
+      // Update trigger display
+      var emoji = item.querySelector('.mode-dropdown__item-emoji').textContent;
+      var name  = item.querySelector('.mode-dropdown__item-name').textContent;
+      modeEmoji.textContent = emoji;
+      modeText.textContent  = name;
+
+      // Close menu
+      closeMenu();
+
+      // Persist to localStorage
+      try { localStorage.setItem('getouch_mode', mode); } catch(e) {}
+
+      // Update input state
+      if (currentMode === 'image') {
+        input.placeholder = 'Describe the image you want to generate...';
+        input.maxLength = 1000;
+        quotaBadge.style.display = '';
+        loadQuota();
+      } else {
+        input.placeholder = 'Ask about our services or anything else...';
+        input.maxLength = 4000;
+        quotaBadge.style.display = 'none';
+      }
+      input.focus();
+    }
+
+    modeMenu.querySelectorAll('.mode-dropdown__item').forEach(function(item) {
+      item.addEventListener('click', function() { selectMode(this); });
     });
 
     /* ── Quota loader ──────────────────────────────────── */
