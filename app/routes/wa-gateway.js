@@ -25,9 +25,9 @@ const PROXY_TIMEOUT = 15000;
 const DEFAULT_TENANT_ID = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
 
 /**
- * All /v1/* routes require a valid Bearer API key with environment resolution
+ * NOTE: Auth is applied per-route (not router.use) because this router
+ * shares the /v1 mount with chat and image routes that allow anonymous access.
  */
-router.use(requireApiKeyWithEnv);
 
 /**
  * Helper: proxy a request to the internal WA service
@@ -70,24 +70,24 @@ async function proxyToWa(internalPath, method, body, res) {
 }
 
 /* ── GET /v1/status ────────────────────────────────────── */
-router.get('/status', async (req, res) => {
+router.get('/status', requireApiKeyWithEnv, async (req, res) => {
   await proxyToWa('/api/internal/wa/status', 'GET', null, res);
 });
 
 /* ── GET /v1/session/qr ────────────────────────────────── */
-router.get('/session/qr', async (req, res) => {
+router.get('/session/qr', requireApiKeyWithEnv, async (req, res) => {
   await proxyToWa('/api/internal/wa/qr', 'GET', null, res);
 });
 
 /* ── POST /v1/session/start ────────────────────────────── */
 /* WA service auto-starts Baileys on boot; return current status */
-router.post('/session/start', async (req, res) => {
+router.post('/session/start', requireApiKeyWithEnv, async (req, res) => {
   await proxyToWa('/api/internal/wa/status', 'GET', null, res);
 });
 
 /* ── POST /v1/session/logout ───────────────────────────── */
 /* No direct WA endpoint; acknowledge and return success */
-router.post('/session/logout', async (_req, res) => {
+router.post('/session/logout', requireApiKeyWithEnv, async (_req, res) => {
   res.json({
     ok: true,
     message: 'Logout request acknowledged. Session will be cleared on next restart.',
@@ -95,7 +95,7 @@ router.post('/session/logout', async (_req, res) => {
 });
 
 /* ── POST /v1/session/clear ────────────────────────────── */
-router.post('/session/clear', async (_req, res) => {
+router.post('/session/clear', requireApiKeyWithEnv, async (_req, res) => {
   res.json({
     ok: true,
     message: 'Session clear acknowledged.',
@@ -103,7 +103,7 @@ router.post('/session/clear', async (_req, res) => {
 });
 
 /* ── POST /v1/session/reset ────────────────────────────── */
-router.post('/session/reset', async (_req, res) => {
+router.post('/session/reset', requireApiKeyWithEnv, async (_req, res) => {
   res.json({
     ok: true,
     message: 'Session reset acknowledged.',
@@ -111,7 +111,7 @@ router.post('/session/reset', async (_req, res) => {
 });
 
 /* ── POST /v1/messages/send ────────────────────────────── */
-router.post('/messages/send', async (req, res) => {
+router.post('/messages/send', requireApiKeyWithEnv, async (req, res) => {
   const { to, text, message } = req.body || {};
   const msgText = text || message; // Serapod sends `text`, accept `message` too
   if (!to || !msgText) {
@@ -129,7 +129,7 @@ router.post('/messages/send', async (req, res) => {
 });
 
 /* ── GET /v1/health — raw WA service health ────────────── */
-router.get('/health', async (req, res) => {
+router.get('/health', requireApiKeyWithEnv, async (req, res) => {
   await proxyToWa('/health', 'GET', null, res);
 });
 
