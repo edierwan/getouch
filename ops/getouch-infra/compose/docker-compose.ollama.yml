@@ -33,14 +33,12 @@ services:
         max-file: "3"
 
   comfyui:
-    image: ghcr.io/ai-dock/comfyui:latest
+    image: yanwk/comfyui-boot:cu128-slim
     container_name: comfyui
     restart: unless-stopped
     environment:
       TZ: Asia/Kuala_Lumpur
-      CLI_ARGS: "--listen 0.0.0.0 --port 8188 --preview-method auto"
-      WEB_ENABLE_AUTH: "false"
-      SKIP_ACL: "true"
+      CLI_ARGS: "--preview-method auto"
     deploy:
       resources:
         reservations:
@@ -51,9 +49,10 @@ services:
         limits:
           memory: 12g
     volumes:
-      - /opt/getouch/data/comfyui/models:/opt/ComfyUI/models
-      - /opt/getouch/data/comfyui/output:/opt/ComfyUI/output
-      - /opt/getouch/data/images:/opt/ComfyUI/output/api
+      - /opt/getouch/data/comfyui/storage:/root
+      - /opt/getouch/data/comfyui/models:/root/ComfyUI/models
+      - /opt/getouch/data/comfyui/output:/root/ComfyUI/output
+      - /opt/getouch/data/images:/root/ComfyUI/output/api
     networks:
       - getouch_app
       - getouch_data
