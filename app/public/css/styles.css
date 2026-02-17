@@ -68,6 +68,32 @@ body {
   line-height: 1.6;
 }
 
+/* ── Global custom scrollbar (dark theme) ──────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+::-webkit-scrollbar-corner {
+  background: var(--bg);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg);
+}
+
 a { color: inherit; text-decoration: none; }
 
 /* ── Container ─────────────────────────────────────────── */
@@ -969,21 +995,46 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Landing — Chat Interface (Hero-embedded)
+   Landing — Chat-First Interface
    ═══════════════════════════════════════════════════════════ */
 .hero--chat {
-  padding: 60px 0 20px;
-  display: flex; flex-direction: column; align-items: center;
+  padding: 0;
+  display: flex; flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  height: calc(100vh - 120px);
+  max-width: 760px;
+  margin: 0 auto;
 }
 
-.hero__chat-icon {
-  width: 64px; height: 64px;
+/* ── Welcome state (before first message) ─────────────── */
+.landing-welcome {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 40px 20px;
+}
+.landing-welcome .hero__chat-icon {
+  width: 56px; height: 56px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   background: var(--surface);
   border: 1px solid var(--border);
-  margin-bottom: 20px;
   color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.landing-welcome .hero__title {
+  margin-bottom: 4px;
+}
+.landing-welcome .hero__subtitle {
+  margin-bottom: 16px;
+}
+
+.hero__chat-icon {
+  width: 56px; height: 56px;
+  display: none;
 }
 
 .landing-suggestions {
@@ -1016,13 +1067,28 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Landing Chat Messages ─────────────────────────────── */
 .landing-chat {
+  flex: 1;
   width: 100%;
-  max-width: 700px;
-  margin: 0 auto;
-  max-height: 50vh;
   overflow-y: auto;
-  padding: 16px 0;
+  padding: 20px 0 16px;
+  scroll-behavior: smooth;
 }
+
+/* Custom scrollbar for landing chat */
+.landing-chat::-webkit-scrollbar {
+  width: 6px;
+}
+.landing-chat::-webkit-scrollbar-track {
+  background: transparent;
+}
+.landing-chat::-webkit-scrollbar-thumb {
+  background: rgba(99,102,241,.25);
+  border-radius: 3px;
+}
+.landing-chat::-webkit-scrollbar-thumb:hover {
+  background: rgba(99,102,241,.45);
+}
+
 .landing-chat__messages {
   display: flex; flex-direction: column; gap: 12px;
 }
@@ -1030,6 +1096,7 @@ a { color: inherit; text-decoration: none; }
 .lc-msg {
   display: flex; gap: 10px; max-width: 90%;
   animation: msgIn .3s ease;
+  text-align: left;
 }
 .lc-msg--bot  { align-self: flex-start; }
 .lc-msg--user { align-self: flex-end; flex-direction: row-reverse; }
@@ -1051,6 +1118,7 @@ a { color: inherit; text-decoration: none; }
   font-size: .85rem;
   line-height: 1.6;
   color: var(--text-secondary);
+  text-align: left;
 }
 .lc-msg__bubble--user {
   background: var(--accent);
@@ -1078,7 +1146,7 @@ a { color: inherit; text-decoration: none; }
   50%      { opacity: 0; }
 }
 
-.lc-msg__content { word-wrap: break-word; }
+.lc-msg__content { word-wrap: break-word; text-align: left; }
 
 /* ── Landing Input Bar (fixed bottom) ──────────────────── */
 .landing-input-bar {

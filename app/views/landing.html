@@ -20,35 +20,37 @@
       </ul>
     </nav>
 
-    <!-- ─── Hero / AI Chat ──────────────────────────────── -->
+    <!-- ─── Chat-First Interface ───────────────────────── -->
     <section class="hero hero--chat">
-      <div class="hero__chat-icon">
-        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <h1 class="hero__title" style="font-size: clamp(1.75rem, 4vw, 2.75rem);">
-        Hi, I'm <span class="gradient-text">Getouch AI</span>
-      </h1>
-      <p class="hero__subtitle" style="margin-bottom: 20px;">
-        Ask me anything about our services — WhatsApp automation, AI
-        chatbot API, database tools, or any general question. Powered by on-premises AI.
-      </p>
+      <!-- Welcome state: shown before first message -->
+      <div class="landing-welcome" id="landing-welcome">
+        <div class="hero__chat-icon" style="display:flex;">
+          <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h1 class="hero__title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
+          Hi, I'm <span class="gradient-text">Getouch AI</span>
+        </h1>
+        <p class="hero__subtitle" style="margin-bottom: 16px; font-size: .9rem;">
+          Ask me anything about our services — WhatsApp automation, AI
+          chatbot API, database tools, or any general question.
+        </p>
 
-      <!-- Suggestion Chips -->
-      <div class="landing-suggestions" id="landing-suggestions">
-        <p class="landing-suggestions__label">Try one of these to get started:</p>
-        <div class="landing-suggestions__chips">
-          <button class="chip chip--landing" data-msg="What services do you offer?">💬 What services do you offer?</button>
-          <button class="chip chip--landing" data-msg="Tell me about WhatsApp Gateway">📱 Tell me about WhatsApp Gateway</button>
-          <button class="chip chip--landing" data-msg="How does the AI Bot work?">📦 How does the AI Bot work?</button>
-          <button class="chip chip--landing" data-msg="Show me the REST API">⚡ Show me the REST API</button>
-          <button class="chip chip--landing" data-msg="What are AI + DB tools?">💻 What are AI + DB tools?</button>
-          <button class="chip chip--landing" data-msg="How do I get started?">🚀 How do I get started?</button>
+        <!-- Suggestion Chips -->
+        <div class="landing-suggestions" id="landing-suggestions">
+          <div class="landing-suggestions__chips">
+            <button class="chip chip--landing" data-msg="What services do you offer?">💬 What services do you offer?</button>
+            <button class="chip chip--landing" data-msg="Tell me about WhatsApp Gateway">📱 WhatsApp Gateway</button>
+            <button class="chip chip--landing" data-msg="How does the AI Bot work?">📦 How does the AI Bot work?</button>
+            <button class="chip chip--landing" data-msg="Show me the REST API">⚡ REST API</button>
+            <button class="chip chip--landing" data-msg="What are AI + DB tools?">💻 AI + DB tools</button>
+            <button class="chip chip--landing" data-msg="How do I get started?">🚀 Get started</button>
+          </div>
         </div>
       </div>
 
-      <!-- Chat Messages Area (appears after first message) -->
+      <!-- Chat Messages Area (shown from first message) -->
       <div class="landing-chat" id="landing-chat" style="display:none;">
         <div class="landing-chat__messages" id="landing-messages"></div>
       </div>
@@ -160,6 +162,7 @@
     var modeDropdown= document.getElementById('mode-dropdown');
     var modeLabel   = document.getElementById('mode-text');
     var suggestions = document.getElementById('landing-suggestions');
+    var welcome     = document.getElementById('landing-welcome');
     var chatArea    = document.getElementById('landing-chat');
     var messages    = document.getElementById('landing-messages');
     var imageResult = document.getElementById('landing-image-result');
@@ -463,8 +466,10 @@
       var text = input.value.trim();
       if (!text || isStreaming) return;
 
-      // Hide suggestions on first interaction
-      if (suggestions) suggestions.style.display = 'none';
+      // Hide welcome section on first interaction
+      if (welcome) {
+        welcome.style.display = 'none';
+      }
 
       if (currentMode === 'image') {
         sendImage(text);
