@@ -13,10 +13,15 @@
   <div class="container">
     <!-- ─── Navigation ──────────────────────────────────── -->
     <nav class="nav">
-      <div class="nav__logo">ge<span>touch</span></div>
-      <ul class="nav__links">
-        <li><a href="/auth/login" class="btn btn--ghost" style="padding: 6px 16px; font-size: 0.8125rem;">Login</a></li>
-        <li><a href="/auth/register" class="btn btn--primary" style="padding: 6px 16px; font-size: 0.8125rem;">Get Started</a></li>
+      <a href="/" class="nav__logo" id="nav-logo" style="text-decoration:none;">ge<span>touch</span></a>
+      <ul class="nav__links" id="nav-links">
+        <li id="nav-login"><a href="/auth/login" class="btn btn--ghost" style="padding: 6px 16px; font-size: 0.8125rem;">Login</a></li>
+        <li id="nav-register"><a href="/auth/register" class="btn btn--primary" style="padding: 6px 16px; font-size: 0.8125rem;">Get Started</a></li>
+        <li id="nav-avatar" style="display:none;">
+          <a href="/dashboard" class="nav__user-avatar" title="Dashboard">
+            <img id="nav-avatar-img" src="" alt="Profile" style="width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);object-fit:cover;">
+          </a>
+        </li>
       </ul>
     </nav>
 
@@ -163,6 +168,7 @@
     var modeLabel   = document.getElementById('mode-text');
     var suggestions = document.getElementById('landing-suggestions');
     var welcome     = document.getElementById('landing-welcome');
+    var heroChat    = document.querySelector('.hero--chat');
     var chatArea    = document.getElementById('landing-chat');
     var messages    = document.getElementById('landing-messages');
     var imageResult = document.getElementById('landing-image-result');
@@ -466,9 +472,12 @@
       var text = input.value.trim();
       if (!text || isStreaming) return;
 
-      // Hide welcome section on first interaction
+      // Hide welcome section, switch to chat-only layout
       if (welcome) {
         welcome.style.display = 'none';
+      }
+      if (heroChat) {
+        heroChat.classList.add('is-chatting');
       }
 
       if (currentMode === 'image') {
@@ -765,6 +774,55 @@
     twMode.addEventListener('change', updateTypingSetting);
     twSpeed.addEventListener('input', updateTypingSetting);
     twAdaptive.addEventListener('change', updateTypingSetting);
+
+    /* ── Check if user is logged in → show avatar ──────── */
+    (function checkUserSession() {
+      fetch('/api/me', { credentials: 'same-origin' })
+        .then(function(r) {
+          if (!r.ok) throw new Error('Not logged in');
+          return r.json();
+        })
+        .then(function(user) {
+          var navLogin    = document.getElementById('nav-login');
+          var navRegister = document.getElementById('nav-register');
+          var navAvatar   = document.getElementById('nav-avatar');
+          var avatarImg   = document.getElementById('nav-avatar-img');
+
+          if (navLogin)    navLogin.style.display = 'none';
+          if (navRegister) navRegister.style.display = 'none';
+          if (navAvatar) {
+            navAvatar.style.display = '';
+            if (user.avatar_url && avatarImg) {
+              avatarImg.src = user.avatar_url;
+              avatarImg.alt = user.name || user.email;
+            } else if (avatarImg) {
+              // Generate initials avatar
+              var initials = (user.name || user.email || '?').charAt(0).toUpperCase();
+              avatarImg.style.display = 'none';
+              var initialsEl = document.createElement('div');
+              initialsEl.style.cssText = 'width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;border:2px solid var(--accent-hover);';
+              initialsEl.textContent = initials;
+              avatarImg.parentNode.appendChild(initialsEl);
+            }
+          }
+        })
+        .catch(function() {
+          // Not logged in — keep Login / Get Started buttons
+        });
+    })();
+
+    /* ── Logo click: reset to landing (if chatting) ────── */
+    document.getElementById('nav-logo').addEventListener('click', function(e) {
+      if (heroChat && heroChat.classList.contains('is-chatting')) {
+        e.preventDefault();
+        heroChat.classList.remove('is-chatting');
+        if (welcome) welcome.style.display = '';
+        chatArea.style.display = 'none';
+        imageResult.style.display = 'none';
+        messages.innerHTML = '';
+        input.focus();
+      }
+    });
 
   })();
   </script>

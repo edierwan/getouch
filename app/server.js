@@ -124,7 +124,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
   const { query } = require('./lib/db');
   try {
     const result = await query(
-      'SELECT id, email, name, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, avatar_url, created_at FROM users WHERE id = $1',
       [req.session.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -284,6 +284,94 @@ app.post('/api/wa-demo', async (req, res) => {
   } catch {
     // Return null so the client-side demo fallback handles it
     res.json({ reply: null });
+  }
+});
+
+/* ── Admin: Registered Users API ─────────────────────────── */
+app.get('/v1/admin/users', async (req, res) => {
+  const { query: dbQuery } = require('./lib/db');
+  try {
+    const page   = Math.max(1, parseInt(req.query.page) || 1);
+    const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+
+    let whereClause = '';
+    let params = [];
+
+    if (search) {
+      whereClause = `WHERE u.email ILIKE $1 OR u.name ILIKE $1`;
+      params.push(`%${search}%`);
+    }
+
+    // Count total
+    const countResult = await dbQuery(
+      `SELECT COUNT(*) as total FROM users u ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // Fetch users with OAuth provider info
+    const usersResult = await dbQuery(
+      `SELECT u.id, u.email, u.name, u.avatar_url, u.is_active,
+              u.email_verified_at, u.created_at, u.updated_at,
+              COALESCE(
+                (SELECT json_agg(json_build_object('provider', oa.provider, 'provider_email', oa.provider_email))
+                 FROM oauth_accounts oa WHERE oa.user_id = u.id),
+                '[]'::json
+              ) as oauth_providers
+       FROM users u
+       ${whereClause}
+       ORDER BY u.created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      users: usersResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error('[admin] Users list error:', err.message);
+    res.status(500).json({ error: 'Failed to load users' });
+  }
+});
+
+/* ── Admin: User Stats ───────────────────────────────────── */
+app.get('/v1/admin/users/stats', async (_req, res) => {
+  const { query: dbQuery } = require('./lib/db');
+  try {
+    const stats = await dbQuery(`
+      SELECT
+        COUNT(*) as total_users,
+        COUNT(*) FILTER (WHERE is_active = true) as active_users,
+        COUNT(*) FILTER (WHERE email_verified_at IS NOT NULL) as verified_users,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as new_last_7d,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as new_last_30d
+      FROM users
+    `);
+
+    const oauthStats = await dbQuery(`
+      SELECT provider, COUNT(DISTINCT user_id) as user_count
+      FROM oauth_accounts
+      GROUP BY provider
+    `);
+
+    const providers = {};
+    oauthStats.rows.forEach(function(r) { providers[r.provider] = parseInt(r.user_count); });
+
+    res.json({
+      ...stats.rows[0],
+      oauth_providers: providers,
+    });
+  } catch (err) {
+    console.error('[admin] User stats error:', err.message);
+    res.status(500).json({ error: 'Failed to load user stats' });
   }
 });
 

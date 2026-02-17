@@ -39,6 +39,10 @@
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"/><circle cx="12" cy="12" r="3"/></svg>
           Infrastructure
         </button>
+        <button class="admin-tab" role="tab" aria-selected="false" aria-controls="panel-users" data-tab="users">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          Users
+        </button>
       </div>
 
       <!-- ════════════════════════════════════════════════════
@@ -567,6 +571,75 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         </div>
 
       </div>
+
+      <!-- ════════════════════════════════════════════════════
+           Tab 5: Users
+           ════════════════════════════════════════════════════ -->
+      <div class="admin-panel" id="panel-users" role="tabpanel">
+
+        <!-- User Stats Cards -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Registered Users</h2>
+          <div class="user-stats-grid" id="user-stats-grid">
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-total">—</div>
+              <div class="user-stat-card__label">Total Users</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-active">—</div>
+              <div class="user-stat-card__label">Active</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-verified">—</div>
+              <div class="user-stat-card__label">Verified</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-7d">—</div>
+              <div class="user-stat-card__label">New (7d)</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-30d">—</div>
+              <div class="user-stat-card__label">New (30d)</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-google">—</div>
+              <div class="user-stat-card__label">Google OAuth</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="stat-facebook">—</div>
+              <div class="user-stat-card__label">Facebook OAuth</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search & User Table -->
+        <div class="ops-section">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <input type="text" class="ai-setting__input" id="user-search" placeholder="Search by email or name..."
+                   style="max-width:320px;padding:8px 14px;font-size:.82rem;">
+            <button class="btn btn--ghost btn--sm" id="user-search-btn" style="padding:8px 16px;">Search</button>
+          </div>
+          <div style="overflow-x:auto;">
+            <table class="user-table" id="user-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>Registered</th>
+                </tr>
+              </thead>
+              <tbody id="user-table-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:24px;">Loading users…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="user-pagination" id="user-pagination" style="margin-top:12px;"></div>
+        </div>
+
+      </div>
+
     </div>
   </div>
 
@@ -827,6 +900,146 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         setTimeout(function() { statusEl.textContent = ''; }, 3000);
       });
     });
+  })();
+  </script>
+
+  <!-- Users Panel Script -->
+  <script>
+  (function() {
+    'use strict';
+
+    var userTableBody = document.getElementById('user-table-body');
+    var userSearch    = document.getElementById('user-search');
+    var searchBtn     = document.getElementById('user-search-btn');
+    var pagination    = document.getElementById('user-pagination');
+    var currentPage   = 1;
+
+    function escapeHtml(str) {
+      var d = document.createElement('div');
+      d.textContent = str || '';
+      return d.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      var d = new Date(dateStr);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function loadUserStats() {
+      fetch('/v1/admin/users/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var el = function(id) { return document.getElementById(id); };
+          if (el('stat-total'))    el('stat-total').textContent    = data.total_users     || '0';
+          if (el('stat-active'))   el('stat-active').textContent   = data.active_users    || '0';
+          if (el('stat-verified')) el('stat-verified').textContent = data.verified_users   || '0';
+          if (el('stat-7d'))       el('stat-7d').textContent       = data.new_last_7d     || '0';
+          if (el('stat-30d'))      el('stat-30d').textContent      = data.new_last_30d    || '0';
+          if (el('stat-google'))   el('stat-google').textContent   = (data.oauth_providers && data.oauth_providers.google)   || '0';
+          if (el('stat-facebook')) el('stat-facebook').textContent = (data.oauth_providers && data.oauth_providers.facebook) || '0';
+        })
+        .catch(function() {});
+    }
+
+    function loadUsers(page, search) {
+      currentPage = page || 1;
+      var qs = '?page=' + currentPage + '&limit=25';
+      if (search) qs += '&search=' + encodeURIComponent(search);
+
+      userTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:24px;">Loading…</td></tr>';
+
+      fetch('/v1/admin/users' + qs)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.users || data.users.length === 0) {
+            userTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:24px;">No users found</td></tr>';
+            pagination.innerHTML = '';
+            return;
+          }
+
+          userTableBody.innerHTML = data.users.map(function(u) {
+            // Avatar or initials
+            var avatarHtml;
+            if (u.avatar_url) {
+              avatarHtml = '<img class="user-table__avatar" src="' + escapeHtml(u.avatar_url) + '" alt="">';
+            } else {
+              var initial = (u.name || u.email || '?').charAt(0).toUpperCase();
+              avatarHtml = '<div class="user-table__initials">' + initial + '</div>';
+            }
+
+            // Providers
+            var providers = '';
+            if (u.oauth_providers && u.oauth_providers.length > 0) {
+              providers = u.oauth_providers.map(function(p) {
+                var cls = 'user-provider-badge user-provider-badge--' + p.provider;
+                return '<span class="' + cls + '">' + p.provider + '</span>';
+              }).join(' ');
+            } else {
+              providers = '<span class="user-provider-badge user-provider-badge--email">email</span>';
+            }
+
+            // Status
+            var statusCls = u.is_active ? 'user-status-badge--active' : 'user-status-badge--inactive';
+            var statusText = u.is_active ? 'Active' : 'Inactive';
+
+            return '<tr>' +
+              '<td><div class="user-table__user">' + avatarHtml + '<span class="user-table__name">' + escapeHtml(u.name || '—') + '</span></div></td>' +
+              '<td>' + escapeHtml(u.email) + '</td>' +
+              '<td>' + providers + '</td>' +
+              '<td><span class="user-status-badge ' + statusCls + '">' + statusText + '</span></td>' +
+              '<td>' + formatDate(u.created_at) + '</td>' +
+              '</tr>';
+          }).join('');
+
+          // Pagination
+          var p = data.pagination;
+          if (p.totalPages > 1) {
+            pagination.innerHTML =
+              '<button class="user-pagination__btn" id="users-prev" ' + (p.page <= 1 ? 'disabled' : '') + '>← Prev</button>' +
+              '<span class="user-pagination__info">Page ' + p.page + ' of ' + p.totalPages + ' (' + p.total + ' users)</span>' +
+              '<button class="user-pagination__btn" id="users-next" ' + (p.page >= p.totalPages ? 'disabled' : '') + '>Next →</button>';
+
+            var prevBtn = document.getElementById('users-prev');
+            var nextBtn = document.getElementById('users-next');
+            if (prevBtn) prevBtn.addEventListener('click', function() { loadUsers(currentPage - 1, userSearch.value.trim()); });
+            if (nextBtn) nextBtn.addEventListener('click', function() { loadUsers(currentPage + 1, userSearch.value.trim()); });
+          } else {
+            pagination.innerHTML = '<span class="user-pagination__info">' + p.total + ' user' + (p.total !== 1 ? 's' : '') + '</span>';
+          }
+        })
+        .catch(function() {
+          userTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:24px;">Failed to load users</td></tr>';
+        });
+    }
+
+    // Search handlers
+    searchBtn.addEventListener('click', function() { loadUsers(1, userSearch.value.trim()); });
+    userSearch.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') loadUsers(1, this.value.trim());
+    });
+
+    // Load when Users tab is activated
+    var usersLoaded = false;
+    var observer = new MutationObserver(function() {
+      var panel = document.getElementById('panel-users');
+      if (panel && panel.classList.contains('active') && !usersLoaded) {
+        usersLoaded = true;
+        loadUserStats();
+        loadUsers(1);
+      }
+    });
+
+    var panel = document.getElementById('panel-users');
+    if (panel) {
+      observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+      // Also check if already active
+      if (panel.classList.contains('active')) {
+        loadUserStats();
+        loadUsers(1);
+        usersLoaded = true;
+      }
+    }
   })();
   </script>
 </body>
