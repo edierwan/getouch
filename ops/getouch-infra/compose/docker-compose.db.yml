@@ -53,6 +53,7 @@ services:
       PGADMIN_CONFIG_SERVER_MODE: "True"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+      - ${GETOUCH_CONFIG:-../config}/pgadmin-servers.json:/pgadmin4/servers.json:ro
     ports:
       - "127.0.0.1:5050:5050"
     networks:

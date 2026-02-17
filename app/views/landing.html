@@ -205,6 +205,26 @@
 
     var typingSettings = loadTypingSettings();
 
+    // Load server-side typing defaults (admin-configured) and merge with localStorage
+    (function loadServerTypingSettings() {
+      fetch('/v1/admin/settings')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.settings) return;
+          var s = data.settings;
+          var hasLocal = !!localStorage.getItem('getouch_chat_typing');
+          // Server settings act as defaults; localStorage overrides
+          if (!hasLocal) {
+            if (s['typing.enabled'] !== undefined) typingSettings.enabled = !!s['typing.enabled'];
+            if (s['typing.mode']) typingSettings.mode = s['typing.mode'];
+            if (s['typing.speed'] !== undefined) typingSettings.speed = s['typing.speed'];
+            if (s['typing.adaptive_catchup'] !== undefined) typingSettings.adaptiveCatchUp = !!s['typing.adaptive_catchup'];
+            syncTypingUI();
+          }
+        })
+        .catch(function() {});
+    })();
+
     /**
      * Creates a typewriter renderer for one message bubble.
      *

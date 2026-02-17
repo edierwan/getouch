@@ -25,12 +25,14 @@ function requireAdmin(req, res, next) {
   const cfEmail = req.headers['cf-access-authenticated-user-email'];
   if (cfEmail) return next();
 
-  // Option 3: Session-based admin (check users table for admin flag)
-  if (req.session && req.session.userId) {
-    // For now, any authenticated user on the admin path is allowed
-    // since admin pages are behind Cloudflare Access anyway
+  // Option 3: Session-based admin (userId or CF Access email saved to session)
+  if (req.session && (req.session.userId || req.session.cfEmail)) {
     return next();
   }
+
+  // Option 4: CF Access JWT assertion header (present for all CF-protected reqs)
+  const cfJwt = req.headers['cf-access-jwt-assertion'];
+  if (cfJwt) return next();
 
   return res.status(403).json({ error: 'Admin access required' });
 }
@@ -73,6 +75,10 @@ router.put('/settings/:key', async (req, res) => {
     'rate_limit.chat.dev',
     'rate_limit.image.prod',
     'rate_limit.image.dev',
+    'typing.enabled',
+    'typing.mode',
+    'typing.speed',
+    'typing.adaptive_catchup',
   ];
 
   if (!allowedKeys.includes(key)) {
@@ -88,6 +94,22 @@ router.put('/settings/:key', async (req, res) => {
   }
 
   if (key === 'ai.enable_image' && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+
+  // Validate typing settings
+  if (key === 'typing.enabled' && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+  if (key === 'typing.mode' && !['word', 'char'].includes(value)) {
+    return res.status(400).json({ error: 'value must be "word" or "char"' });
+  }
+  if (key === 'typing.speed') {
+    if (typeof value !== 'number' || value < 5 || value > 200) {
+      return res.status(400).json({ error: 'value must be a number between 5 and 200' });
+    }
+  }
+  if (key === 'typing.adaptive_catchup' && typeof value !== 'boolean') {
     return res.status(400).json({ error: 'value must be boolean' });
   }
 

@@ -206,13 +206,22 @@ app.get('/try/whatsapp', (_req, res) => {
 
 app.get('/admin', (_req, res) => res.redirect(301, '/admin/'));
 
-app.get('/admin/', (_req, res) => {
+app.get('/admin/', (req, res) => {
   if (isDev) reloadPages();
+  // Persist CF Access identity into session so AJAX calls to /v1/admin/* pass auth
+  const cfEmail = req.headers['cf-access-authenticated-user-email'];
+  if (cfEmail && req.session) {
+    req.session.cfEmail = cfEmail;
+  }
   res.type('html').send(pages.admin);
 });
 
-app.get('/admin/ops', (_req, res) => {
+app.get('/admin/ops', (req, res) => {
   if (isDev) reloadPages();
+  const cfEmail = req.headers['cf-access-authenticated-user-email'];
+  if (cfEmail && req.session) {
+    req.session.cfEmail = cfEmail;
+  }
   res.type('html').send(pages.ops);
 });
 

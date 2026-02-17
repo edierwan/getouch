@@ -1,0 +1,24 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "PostgreSQL — NVMe (Production)",
+      "Group": "Getouch",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "getouch",
+      "Username": "getouch",
+      "SSLMode": "prefer",
+      "Comment": "Primary production database on NVMe storage"
+    },
+    "2": {
+      "Name": "PostgreSQL — SSD (Development)",
+      "Group": "Getouch",
+      "Host": "postgres-ssd",
+      "Port": 5432,
+      "MaintenanceDB": "getouch",
+      "Username": "getouch",
+      "SSLMode": "prefer",
+      "Comment": "Development database on SSD storage"
+    }
+  }
+}

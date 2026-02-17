@@ -197,6 +197,48 @@
               </div>
             </div>
 
+            <!-- ── Typing Effect Section ─────────────────── -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+              <h3 style="font-size: .9rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">⌨️ AI Typing Effect</h3>
+              <p class="ai-setting__hint" style="margin-bottom: 14px;">Controls how the AI response appears on the landing page chat. When enabled, text renders gradually with a typewriter animation instead of appearing instantly.</p>
+
+              <div class="ai-setting">
+                <label class="ai-setting__label">Enable Typewriter</label>
+                <p class="ai-setting__hint">Toggle the typing animation for AI chat responses.</p>
+                <label class="ai-toggle">
+                  <input type="checkbox" id="setting-typing-enabled" checked>
+                  <span class="ai-toggle__slider"></span>
+                  <span class="ai-toggle__text" id="typing-toggle-text">Enabled</span>
+                </label>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" id="typing-detail-settings">
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Chunk Mode</label>
+                  <p class="ai-setting__hint">Render response word-by-word or character-by-character.</p>
+                  <select class="ai-setting__select" id="setting-typing-mode">
+                    <option value="word">Word</option>
+                    <option value="char">Character</option>
+                  </select>
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Speed (ms)</label>
+                  <p class="ai-setting__hint">Delay per chunk (5–200). Lower = faster typing.</p>
+                  <input type="number" class="ai-setting__input" id="setting-typing-speed" value="35" min="5" max="200" step="5">
+                </div>
+              </div>
+
+              <div class="ai-setting" style="margin-top: 12px;">
+                <label class="ai-setting__label">Adaptive Catch-Up</label>
+                <p class="ai-setting__hint">Speed up rendering when the token buffer grows large (prevents lag).</p>
+                <label class="ai-toggle">
+                  <input type="checkbox" id="setting-typing-adaptive" checked>
+                  <span class="ai-toggle__slider"></span>
+                  <span class="ai-toggle__text" id="typing-adaptive-text">Enabled</span>
+                </label>
+              </div>
+            </div>
+
             <div style="margin-top: 16px;">
               <button class="btn btn--primary btn--sm" id="save-ai-settings">Save AI Settings</button>
               <span class="ai-settings__status" id="settings-status"></span>
@@ -680,6 +722,15 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
     var saveBtn      = document.getElementById('save-ai-settings');
     var statusEl     = document.getElementById('settings-status');
 
+    // Typing settings elements
+    var typingEnabled  = document.getElementById('setting-typing-enabled');
+    var typingTogText  = document.getElementById('typing-toggle-text');
+    var typingMode     = document.getElementById('setting-typing-mode');
+    var typingSpeed    = document.getElementById('setting-typing-speed');
+    var typingAdaptive = document.getElementById('setting-typing-adaptive');
+    var typingAdpText  = document.getElementById('typing-adaptive-text');
+    var typingDetails  = document.getElementById('typing-detail-settings');
+
     // Load current settings
     function loadSettings() {
       fetch('/v1/admin/settings')
@@ -698,6 +749,18 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
           if (s['rate_limit.chat.dev'] !== undefined) rateChatDev.value = s['rate_limit.chat.dev'];
           if (s['rate_limit.image.prod'] !== undefined) rateImageProd.value = s['rate_limit.image.prod'];
           if (s['rate_limit.image.dev'] !== undefined) rateImageDev.value = s['rate_limit.image.dev'];
+          // Typing settings
+          if (s['typing.enabled'] !== undefined) {
+            typingEnabled.checked = !!s['typing.enabled'];
+            typingTogText.textContent = typingEnabled.checked ? 'Enabled' : 'Disabled';
+            typingDetails.style.display = typingEnabled.checked ? '' : 'none';
+          }
+          if (s['typing.mode']) typingMode.value = s['typing.mode'];
+          if (s['typing.speed'] !== undefined) typingSpeed.value = s['typing.speed'];
+          if (s['typing.adaptive_catchup'] !== undefined) {
+            typingAdaptive.checked = !!s['typing.adaptive_catchup'];
+            typingAdpText.textContent = typingAdaptive.checked ? 'Enabled' : 'Disabled';
+          }
         })
         .catch(function() {});
     }
@@ -705,6 +768,14 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
 
     imageToggle.addEventListener('change', function() {
       toggleText.textContent = this.checked ? 'Enabled' : 'Disabled';
+    });
+
+    typingEnabled.addEventListener('change', function() {
+      typingTogText.textContent = this.checked ? 'Enabled' : 'Disabled';
+      typingDetails.style.display = this.checked ? '' : 'none';
+    });
+    typingAdaptive.addEventListener('change', function() {
+      typingAdpText.textContent = this.checked ? 'Enabled' : 'Disabled';
     });
 
     // Save settings
@@ -721,6 +792,10 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         { key: 'rate_limit.chat.dev', value: parseInt(rateChatDev.value, 10) },
         { key: 'rate_limit.image.prod', value: parseInt(rateImageProd.value, 10) },
         { key: 'rate_limit.image.dev', value: parseInt(rateImageDev.value, 10) },
+        { key: 'typing.enabled', value: typingEnabled.checked },
+        { key: 'typing.mode', value: typingMode.value },
+        { key: 'typing.speed', value: parseInt(typingSpeed.value, 10) },
+        { key: 'typing.adaptive_catchup', value: typingAdaptive.checked },
       ];
 
       Promise.all(updates.map(function(u) {
@@ -736,8 +811,13 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
           statusEl.textContent = 'Saved!';
           statusEl.style.color = 'var(--green)';
         } else {
-          statusEl.textContent = 'Some settings failed';
+          var failed = [];
+          results.forEach(function(r, i) {
+            if (!r.ok) failed.push(updates[i].key + ': ' + (r.error || 'unknown'));
+          });
+          statusEl.textContent = 'Failed: ' + failed.join(', ');
           statusEl.style.color = 'var(--red)';
+          console.warn('[admin] Settings that failed:', failed);
         }
         setTimeout(function() { statusEl.textContent = ''; }, 3000);
       })
