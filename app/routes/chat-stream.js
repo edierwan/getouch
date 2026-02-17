@@ -44,7 +44,7 @@ router.post('/chat', async (req, res) => {
     });
   }
 
-  const { message, model, temperature, max_tokens } = req.body || {};
+  const { message, model, temperature, max_tokens, image, image_mime } = req.body || {};
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message is required (string)' });
@@ -53,10 +53,28 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ error: `message too long (max ${MAX_INPUT_LENGTH} chars)` });
   }
 
-  // Resolve model
+  // Validate image if provided
+  const hasImage = image && typeof image === 'string' && image.length > 0;
+  if (hasImage) {
+    // Check base64 size (rough: base64 is ~1.33x raw)
+    const approxBytes = image.length * 0.75;
+    if (approxBytes > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image too large (max 10MB)' });
+    }
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (image_mime && !allowedMimes.includes(image_mime)) {
+      return res.status(400).json({ error: 'Unsupported image type. Use PNG, JPEG, or WebP.' });
+    }
+  }
+
+  // Resolve model: use vision model if image attached, text model otherwise
   let selectedModel = model;
   if (!selectedModel) {
-    selectedModel = await getSetting('ai.default_text_model', 'llama3.1:8b');
+    if (hasImage) {
+      selectedModel = await getSetting('ai.default_vision_model', 'qwen2.5vl:3b');
+    } else {
+      selectedModel = await getSetting('ai.default_text_model', 'llama3.1:8b');
+    }
   }
 
   // SSE headers
@@ -72,6 +90,12 @@ router.post('/chat', async (req, res) => {
   req.on('close', () => ac.abort());
 
   try {
+    // Build user message — include image for vision models
+    const userMessage = { role: 'user', content: message };
+    if (hasImage) {
+      userMessage.images = [image]; // Ollama expects base64 strings in images array
+    }
+
     const ollamaRes = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -80,9 +104,11 @@ router.post('/chat', async (req, res) => {
         messages: [
           {
             role: 'system',
-            content: 'You are Getouch AI, a helpful assistant. Be concise and clear. You run on-premises for privacy.',
+            content: hasImage
+              ? 'You are Getouch AI, a helpful vision assistant. Analyze the provided image and respond to the user query about it. Be concise and clear.'
+              : 'You are Getouch AI, a helpful assistant. Be concise and clear. You run on-premises for privacy.',
           },
-          { role: 'user', content: message },
+          userMessage,
         ],
         stream: true,
         options: {
@@ -183,16 +209,39 @@ router.post('/chat', async (req, res) => {
 });
 
 /**
- * GET /v1/chat/models — list available text models
+ * GET /v1/chat/models — list available text models from Ollama
  */
 router.get('/chat/models', async (_req, res) => {
   try {
     const defaultModel = await getSetting('ai.default_text_model', 'llama3.1:8b');
-    const models = [
-      { id: 'llama3.1:8b',              name: 'Llama 3.1 8B',       label: 'Fast',  default: defaultModel === 'llama3.1:8b' },
-      { id: 'qwen2.5:14b-instruct',     name: 'Qwen 2.5 14B',      label: 'Smart', default: defaultModel === 'qwen2.5:14b-instruct' },
-    ];
-    res.json({ models, default_model: defaultModel });
+    const defaultVision = await getSetting('ai.default_vision_model', 'qwen2.5vl:3b');
+
+    // Fetch live model list from Ollama
+    let ollamaModels = [];
+    try {
+      const ollamaRes = await fetch(`${OLLAMA_URL}/api/tags`);
+      if (ollamaRes.ok) {
+        const data = await ollamaRes.json();
+        ollamaModels = (data.models || []).map(m => ({
+          id: m.name,
+          name: m.name,
+          size_gb: (m.size / 1e9).toFixed(1),
+          is_vision: /vl|vision|llava|minicpm-v/i.test(m.name),
+          default: m.name === defaultModel,
+          default_vision: m.name === defaultVision,
+        }));
+      }
+    } catch {}
+
+    // Fallback if Ollama unreachable
+    if (ollamaModels.length === 0) {
+      ollamaModels = [
+        { id: 'llama3.1:8b', name: 'llama3.1:8b', size_gb: '4.9', is_vision: false, default: true, default_vision: false },
+        { id: 'qwen2.5:14b-instruct', name: 'qwen2.5:14b-instruct', size_gb: '9.0', is_vision: false, default: false, default_vision: false },
+      ];
+    }
+
+    res.json({ models: ollamaModels, default_model: defaultModel, default_vision_model: defaultVision });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load models' });
   }

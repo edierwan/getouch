@@ -82,7 +82,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 /* ── Session ─────────────────────────────────────────────── */

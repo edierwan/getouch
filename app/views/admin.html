@@ -147,8 +147,15 @@
               <label class="ai-setting__label">Default Text Model</label>
               <p class="ai-setting__hint">Used when users don't specify a model on the landing page.</p>
               <select class="ai-setting__select" id="setting-default-model">
-                <option value="llama3.1:8b">llama3.1:8b (Fast)</option>
-                <option value="qwen2.5:14b-instruct">qwen2.5:14b-instruct (Smart)</option>
+                <option value="">Loading models…</option>
+              </select>
+            </div>
+
+            <div class="ai-setting">
+              <label class="ai-setting__label">Default Vision Model</label>
+              <p class="ai-setting__hint">Used when users attach an image in chat (requires vision-capable model).</p>
+              <select class="ai-setting__select" id="setting-vision-model">
+                <option value="">Loading models…</option>
               </select>
             </div>
 
@@ -784,6 +791,7 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
 
     /* ── AI Settings management ─────────────────────────── */
     var modelSelect  = document.getElementById('setting-default-model');
+    var visionSelect = document.getElementById('setting-vision-model');
     var imageToggle  = document.getElementById('setting-enable-image');
     var toggleText   = document.getElementById('toggle-text');
     var maxImagesProd = document.getElementById('setting-max-images-prod');
@@ -794,6 +802,38 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
     var rateImageDev  = document.getElementById('setting-rate-image-dev');
     var saveBtn      = document.getElementById('save-ai-settings');
     var statusEl     = document.getElementById('settings-status');
+
+    // Load available models from Ollama
+    function loadModels() {
+      fetch('/v1/chat/models')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.models) return;
+          modelSelect.innerHTML = '';
+          visionSelect.innerHTML = '<option value="">(none — text model fallback)</option>';
+          data.models.forEach(function(m) {
+            var sizeLabel = m.size_gb ? ' (' + m.size_gb + ' GB)' : '';
+            var visionTag = m.is_vision ? ' [Vision]' : '';
+            var opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.id + sizeLabel + visionTag;
+            modelSelect.appendChild(opt);
+            // Add all models to vision dropdown too, but mark vision ones
+            var vopt = document.createElement('option');
+            vopt.value = m.id;
+            vopt.textContent = m.id + sizeLabel + visionTag;
+            visionSelect.appendChild(vopt);
+          });
+          // Set saved values
+          if (data.default_model) modelSelect.value = data.default_model;
+          if (data.default_vision_model) visionSelect.value = data.default_vision_model;
+        })
+        .catch(function() {
+          modelSelect.innerHTML = '<option value="llama3.1:8b">llama3.1:8b</option>';
+          visionSelect.innerHTML = '<option value="">(none)</option>';
+        });
+    }
+    loadModels();
 
     // Typing settings elements
     var typingEnabled  = document.getElementById('setting-typing-enabled');
@@ -812,6 +852,7 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
           if (!data.settings) return;
           var s = data.settings;
           if (s['ai.default_text_model']) modelSelect.value = s['ai.default_text_model'];
+          if (s['ai.default_vision_model']) visionSelect.value = s['ai.default_vision_model'];
           if (s['ai.enable_image'] !== undefined) {
             imageToggle.checked = !!s['ai.enable_image'];
             toggleText.textContent = imageToggle.checked ? 'Enabled' : 'Disabled';
@@ -858,6 +899,7 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
 
       var updates = [
         { key: 'ai.default_text_model', value: modelSelect.value },
+        { key: 'ai.default_vision_model', value: visionSelect.value },
         { key: 'ai.enable_image', value: imageToggle.checked },
         { key: 'ai.image.max_per_day_free.prod', value: parseInt(maxImagesProd.value, 10) },
         { key: 'ai.image.max_per_day_free.dev', value: parseInt(maxImagesDev.value, 10) },

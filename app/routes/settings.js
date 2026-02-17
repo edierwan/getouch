@@ -67,6 +67,7 @@ router.put('/settings/:key', async (req, res) => {
   // Whitelist allowed settings
   const allowedKeys = [
     'ai.default_text_model',
+    'ai.default_vision_model',
     'ai.enable_image',
     'ai.image.max_per_day_free',
     'ai.image.max_per_day_free.prod',
@@ -86,10 +87,10 @@ router.put('/settings/:key', async (req, res) => {
   }
 
   // Validate specific settings
-  if (key === 'ai.default_text_model') {
-    const validModels = ['llama3.1:8b', 'qwen2.5:14b-instruct'];
-    if (!validModels.includes(value)) {
-      return res.status(400).json({ error: `Invalid model. Options: ${validModels.join(', ')}` });
+  // Validate model settings — accept any string (dynamic from Ollama)
+  if (key === 'ai.default_text_model' || key === 'ai.default_vision_model') {
+    if (typeof value !== 'string' || value.length > 100) {
+      return res.status(400).json({ error: 'Model name must be a string (max 100 chars)' });
     }
   }
 
