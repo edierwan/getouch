@@ -1,45 +1,7 @@
-# Staging Core Stack: Caddy reverse proxy + Cloudflare Tunnel
-# Usage: docker compose -p getouch-stg -f docker-compose.yml up -d
-
-services:
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      TZ: Asia/Kuala_Lumpur
-    volumes:
-      - /opt/getouch-stg/config/Caddyfile:/etc/caddy/Caddyfile:ro
-      - stg_caddy_data:/data
-      - stg_caddy_config:/config
-    ports:
-      - "127.0.0.1:8080:80"
-    networks:
-      - stg_ingress
-      - stg_app
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN_STG:?Set CLOUDFLARE_TUNNEL_TOKEN_STG in .env}
-    networks:
-      - stg_ingress
-    depends_on:
-      caddy:
-        condition: service_healthy
-
-volumes:
-  stg_caddy_data:
-  stg_caddy_config:
-
-networks:
-  stg_ingress:
-    external: true
-  stg_app:
-    external: true
+# DEPRECATED — Staging shares the main Caddy + Cloudflare tunnel.
+# Dev routes (dev.getouch.co) are in the main Caddyfile.
+# Only staging/docker-compose.apps.yml and docker-compose.db-staging.yml are needed.
+#
+# To bring up staging apps:
+#   cd /opt/getouch/compose/staging
+#   docker compose -p getouch-stg -f docker-compose.apps.yml up -d --build

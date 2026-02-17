@@ -1,60 +1,119 @@
 #!/usr/bin/env bash
-# deploy.sh — Git pull + rebuild + restart the full stack
-# Usage: bash /opt/getouch/scripts/deploy.sh
+#
+# Getouch Deploy Script
+# Run from your LOCAL machine (macOS) to deploy to the VPS.
+#
+# Usage:
+#   ./deploy.sh              # auto-detect: main→prod, develop→staging
+#   ./deploy.sh prod         # deploy main   → getouch.co    (NVMe postgres)
+#   ./deploy.sh staging      # deploy develop → dev.getouch.co (SSD postgres)
+#   ./deploy.sh all          # deploy both environments
+#
+# Environment:
+#   GETOUCH_VPS_IP   — override VPS address (default: 100.103.248.15)
+#   GETOUCH_VPS_USER — override SSH user     (default: deploy)
+#
 set -euo pipefail
 
+# ── Configuration ──────────────────────────────────────────────────
+VPS_USER="${GETOUCH_VPS_USER:-deploy}"
+VPS_HOST="${GETOUCH_VPS_IP:-100.103.248.15}"
+REPO_REMOTE="/home/deploy/getouch-repo"
 COMPOSE_DIR="/opt/getouch/compose"
-REPO_DIR=""
+SSH_CMD="ssh ${VPS_USER}@${VPS_HOST}"
 
-# Detect if /opt/getouch is a symlink to a git repo
-if [ -L /opt/getouch ]; then
-  REAL_PATH=$(readlink -f /opt/getouch)
-  REPO_DIR=$(cd "$REAL_PATH" && git rev-parse --show-toplevel 2>/dev/null || echo "")
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
+info()  { echo -e "${GREEN}▸${NC} $*"; }
+warn()  { echo -e "${YELLOW}▸${NC} $*"; }
+err()   { echo -e "${RED}✗${NC} $*" >&2; exit 1; }
+
+deploy_env() {
+  local env="$1"
+  local branch service_dir compose_file containers label
+
+  case "$env" in
+    prod)
+      branch="main"
+      service_dir="/opt/getouch/services"
+      compose_file="docker-compose.apps.yml"
+      containers="landing"
+      label="PRODUCTION (main → getouch.co)"
+      ;;
+    staging)
+      branch="develop"
+      service_dir="/opt/getouch-stg/services"
+      compose_file="staging/docker-compose.apps.yml"
+      containers="landing-stg"
+      label="STAGING (develop → dev.getouch.co)"
+      ;;
+  esac
+
+  echo ""
+  echo -e "${BOLD}═══ Deploying $label ═══${NC}"
+
+  info "Pulling $branch on VPS..."
+  $SSH_CMD bash -s <<REMOTE
+    set -e
+    cd $REPO_REMOTE
+    git fetch --all --prune
+    git checkout $branch
+    git pull origin $branch
+    echo "  Commit: \$(git log --oneline -1)"
+REMOTE
+
+  info "Syncing app source → $service_dir/landing ..."
+  $SSH_CMD bash -s <<REMOTE
+    set -e
+    mkdir -p $service_dir/landing
+    rsync -a --delete --exclude node_modules --exclude .git \
+      $REPO_REMOTE/app/ $service_dir/landing/
+REMOTE
+
+  info "Syncing configs..."
+  $SSH_CMD bash -s <<REMOTE
+    set -e
+    cp $REPO_REMOTE/ops/getouch-infra/config/Caddyfile /opt/getouch/config/Caddyfile
+    rsync -a --exclude .env --exclude '*.bak*' \
+      $REPO_REMOTE/ops/getouch-infra/compose/ $COMPOSE_DIR/
+REMOTE
+
+  info "Rebuilding $containers ..."
+  $SSH_CMD bash -s <<REMOTE
+    set -e
+    cd $COMPOSE_DIR
+    docker compose -f $compose_file up -d --build --no-deps $containers
+REMOTE
+
+  info "Reloading Caddy..."
+  $SSH_CMD bash -s <<'REMOTE'
+    docker exec compose-caddy-1 caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || \
+      docker restart compose-caddy-1
+REMOTE
+
+  info "Verifying..."
+  $SSH_CMD "docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E '$containers|caddy'"
+
+  info "✓ $label deployed"
+}
+
+# ── Detect environment ────────────────────────────────────────────
+ENV="${1:-auto}"
+
+if [[ "$ENV" == "auto" ]]; then
+  BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  case "$BRANCH" in
+    main)    ENV="prod" ;;
+    develop) ENV="staging" ;;
+    *)       err "Branch '$BRANCH' is not main or develop. Specify: ./deploy.sh prod|staging|all" ;;
+  esac
 fi
 
-echo "=== Getouch Deploy ==="
-
-# Step 0: Git pull (if git-managed)
-if [ -n "$REPO_DIR" ]; then
-  echo "[0/6] Pulling latest code from git..."
-  cd "$REPO_DIR"
-  git pull origin develop 2>&1
-  echo "  Commit: $(git log --oneline -1)"
-else
-  echo "[0/6] Not a git repo — skipping git pull"
-fi
-
-cd "$COMPOSE_DIR"
-
-echo "[1/6] Pulling latest Docker images..."
-docker compose pull 2>&1
-docker compose -f docker-compose.db.yml pull 2>&1
-docker compose -f docker-compose.ollama.yml pull 2>&1
-docker compose -f docker-compose.mon.yml pull 2>&1
-[ -f docker-compose.db-staging.yml ] && docker compose -f docker-compose.db-staging.yml pull 2>&1
-[ -f docker-compose.coolify.yml ] && docker compose -f docker-compose.coolify.yml pull 2>&1
-
-echo "[2/6] Rebuilding app services..."
-docker compose -f docker-compose.apps.yml build --no-cache 2>&1
-
-echo "[3/6] Restarting all stacks..."
-docker compose up -d 2>&1
-docker compose -f docker-compose.db.yml up -d 2>&1
-docker compose -f docker-compose.ollama.yml up -d 2>&1
-docker compose -f docker-compose.apps.yml up -d 2>&1
-docker compose -f docker-compose.mon.yml up -d 2>&1
-[ -f docker-compose.db-staging.yml ] && docker compose -f docker-compose.db-staging.yml up -d 2>&1
-[ -f docker-compose.coolify.yml ] && docker compose -f docker-compose.coolify.yml up -d 2>&1
-
-echo "[4/6] Reloading Caddy..."
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile 2>&1 || echo "  Caddy reload skipped"
-
-echo "[5/6] Grafana provisioning check..."
-sleep 3
-docker logs --tail 10 grafana 2>&1 | grep -i "provisioning\|datasource\|dashboard" || echo "  (no provisioning log lines yet)"
-
-echo "[6/6] Status:"
-docker ps --format "table {{.Names}}\t{{.Status}}" | sort
+case "$ENV" in
+  prod|production)   deploy_env prod ;;
+  staging|stg|dev)   deploy_env staging ;;
+  all)               deploy_env prod; deploy_env staging ;;
+  *)                 err "Unknown environment: $ENV. Use prod, staging, or all." ;;
+esac
 
 echo ""
-echo "Deploy complete at $(date)"
+echo -e "${GREEN}✓ All done.${NC}"

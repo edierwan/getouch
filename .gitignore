@@ -17,3 +17,5 @@ npm-debug.log*
 .env.*.local
 *.pem
 *.key
+*.bak
+*.bak2

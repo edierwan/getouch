@@ -1,5 +1,9 @@
-# Staging App Services
-# Usage: docker compose -p getouch-stg -f docker-compose.apps.yml up -d
+# Staging App Services  (develop branch → dev.getouch.co → postgres-ssd)
+# Shares the main Caddy + Cloudflare tunnel; no separate ingress needed.
+#
+# Usage:
+#   cd /opt/getouch/compose/staging
+#   docker compose -p getouch-stg -f docker-compose.apps.yml up -d --build
 
 x-app-defaults: &app-defaults
   restart: unless-stopped
@@ -19,16 +23,17 @@ services:
     environment:
       PORT: "3000"
       NODE_ENV: staging
+      VERSION: "2.0.0-dev"
+      PUBLIC_URL: "https://dev.getouch.co"
       TZ: Asia/Kuala_Lumpur
-    expose:
-      - "3000"
     networks:
-      - stg_app
+      - getouch_app
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/healthz"]
-      interval: 15s
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health',r=>{r.statusCode===200?process.exit(0):process.exit(1)}).on('error',()=>process.exit(1))"]
+      interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   bot:
     <<: *app-defaults
@@ -42,13 +47,17 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-ollama}
       OLLAMA_PORT: ${OLLAMA_PORT:-11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
-      DATABASE_URL: ${DATABASE_URL_BOT:-postgresql://getouch:${POSTGRES_PASSWORD}@postgres-stg:5432/getouch_bot}
+      DATABASE_URL: ${DATABASE_URL_BOT_STG:-postgresql://getouch:${POSTGRES_STG_PASSWORD}@postgres-ssd:5432/getouch_bot}
       TZ: Asia/Kuala_Lumpur
-    expose:
-      - "3000"
     networks:
-      - stg_app
-      - stg_data
+      - getouch_app
+      - getouch_data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health',r=>{r.statusCode===200?process.exit(0):process.exit(1)}).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   wa:
     <<: *app-defaults
@@ -59,15 +68,19 @@ services:
     environment:
       PORT: "3000"
       NODE_ENV: staging
-      DATABASE_URL: ${DATABASE_URL_WA:-postgresql://getouch:${POSTGRES_PASSWORD}@postgres-stg:5432/getouch_wa}
+      DATABASE_URL: ${DATABASE_URL_WA_STG:-postgresql://getouch:${POSTGRES_STG_PASSWORD}@postgres-ssd:5432/getouch_wa}
       TZ: Asia/Kuala_Lumpur
-    expose:
-      - "3000"
     volumes:
       - /opt/getouch-stg/data/wa-sessions:/app/sessions
     networks:
-      - stg_app
-      - stg_data
+      - getouch_app
+      - getouch_data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   api:
     <<: *app-defaults
@@ -81,16 +94,20 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-ollama}
       OLLAMA_PORT: ${OLLAMA_PORT:-11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://getouch:${POSTGRES_PASSWORD}@postgres-stg:5432/getouch}
+      DATABASE_URL: ${DATABASE_URL_STG:-postgresql://getouch:${POSTGRES_STG_PASSWORD}@postgres-ssd:5432/getouch}
       TZ: Asia/Kuala_Lumpur
-    expose:
-      - "3000"
     networks:
-      - stg_app
-      - stg_data
+      - getouch_app
+      - getouch_data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 networks:
-  stg_app:
+  getouch_app:
     external: true
-  stg_data:
+  getouch_data:
     external: true

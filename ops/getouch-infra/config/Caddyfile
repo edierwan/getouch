@@ -107,3 +107,33 @@ coolify.getouch.co:80 {
 	reverse_proxy coolify:8080
 }
 
+
+# ═══════════════════════════════════════════════════════════════════
+# STAGING — develop branch → dev.getouch.co → postgres-ssd
+# Containers: landing-stg, bot-stg, wa-stg, api-stg
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Dev Landing ───────────────────────────────────────────────────
+dev.getouch.co:80 {
+	import security_headers
+	reverse_proxy landing-stg:3000
+}
+
+# ── Dev Bot ───────────────────────────────────────────────────────
+bot.dev.getouch.co:80 {
+	import security_headers
+	reverse_proxy bot-stg:3000
+}
+
+# ── Dev WhatsApp ──────────────────────────────────────────────────
+wa.dev.getouch.co:80 {
+	import security_headers
+	reverse_proxy wa-stg:3000
+}
+
+# ── Dev API ───────────────────────────────────────────────────────
+api.dev.getouch.co:80 {
+	import security_headers
+	reverse_proxy api-stg:3000
+}
+
