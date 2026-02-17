@@ -91,6 +91,44 @@
               </button>
             </div>
           </div>
+          <!-- Typing Pace Settings -->
+          <div class="typing-gear" id="typing-gear">
+            <button class="typing-gear__btn" id="typing-gear-btn" type="button"
+                    title="Typing effect settings" aria-haspopup="dialog" aria-expanded="false">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+            <div class="typing-gear__popover" id="typing-gear-menu">
+              <div class="typing-gear__title">Typing Effect</div>
+              <label class="typing-gear__row">
+                <span class="typing-gear__label">Enable typewriter</span>
+                <span class="ai-toggle ai-toggle--sm">
+                  <input type="checkbox" id="tw-enabled">
+                  <span class="ai-toggle__slider"></span>
+                </span>
+              </label>
+              <label class="typing-gear__row" id="tw-mode-row">
+                <span class="typing-gear__label">Chunk mode</span>
+                <select class="typing-gear__select" id="tw-mode">
+                  <option value="word">Word</option>
+                  <option value="char">Character</option>
+                </select>
+              </label>
+              <div class="typing-gear__row" id="tw-speed-row">
+                <span class="typing-gear__label">Speed <span id="tw-speed-val">35</span>ms</span>
+                <input type="range" class="typing-gear__range" id="tw-speed" min="5" max="200" step="5" value="35">
+              </div>
+              <label class="typing-gear__row" id="tw-adaptive-row">
+                <span class="typing-gear__label">Adaptive catch-up</span>
+                <span class="ai-toggle ai-toggle--sm">
+                  <input type="checkbox" id="tw-adaptive" checked>
+                  <span class="ai-toggle__slider"></span>
+                </span>
+              </label>
+            </div>
+          </div>
           <!-- Send Button -->
           <button class="landing-input-bar__send" id="landing-send" title="Send">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -132,6 +170,138 @@
     var isStreaming = false;
     var currentMode = localStorage.getItem('getouch_mode') || 'text';
     var abortCtrl   = null;
+
+    /* ════════════════════════════════════════════════════════
+       Typewriter / Typing Effect Engine
+       ════════════════════════════════════════════════════════ */
+    var TYPING_DEFAULTS = {
+      enabled: true,
+      mode: 'word',       // 'char' | 'word'
+      speed: 35,          // ms per char (or per word when mode=word → speed×3)
+      startDelay: 200,    // ms before first character
+      adaptiveCatchUp: true
+    };
+
+    function loadTypingSettings() {
+      try {
+        var raw = localStorage.getItem('getouch_chat_typing');
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          return {
+            enabled:          typeof parsed.enabled === 'boolean' ? parsed.enabled : TYPING_DEFAULTS.enabled,
+            mode:             parsed.mode === 'char' || parsed.mode === 'word' ? parsed.mode : TYPING_DEFAULTS.mode,
+            speed:            typeof parsed.speed === 'number' ? Math.max(5, Math.min(200, parsed.speed)) : TYPING_DEFAULTS.speed,
+            startDelay:       typeof parsed.startDelay === 'number' ? parsed.startDelay : TYPING_DEFAULTS.startDelay,
+            adaptiveCatchUp:  typeof parsed.adaptiveCatchUp === 'boolean' ? parsed.adaptiveCatchUp : TYPING_DEFAULTS.adaptiveCatchUp
+          };
+        }
+      } catch(e) {}
+      return Object.assign({}, TYPING_DEFAULTS);
+    }
+
+    function saveTypingSettings(settings) {
+      try { localStorage.setItem('getouch_chat_typing', JSON.stringify(settings)); } catch(e) {}
+    }
+
+    var typingSettings = loadTypingSettings();
+
+    /**
+     * Creates a typewriter renderer for one message bubble.
+     *
+     *   var tw = createTypewriter(contentEl, cursorEl, scrollFn);
+     *   tw.push(delta);       // feed a token chunk
+     *   tw.finish();          // stream ended — flush remaining
+     *   tw.cancel();          // abort rendering (new prompt sent)
+     *   tw.isIdle();          // true when buffer is empty & done
+     */
+    function createTypewriter(contentEl, cursorEl, scrollFn) {
+      var buffer         = '';      // characters not yet rendered
+      var rendered       = '';      // full rendered text so far
+      var timer          = null;
+      var streamDone     = false;
+      var cancelled      = false;
+      var started        = false;
+
+      function effectiveDelay() {
+        var base = typingSettings.speed;
+        if (typingSettings.mode === 'word') base = base * 2.5;
+        // Adaptive catch-up: when buffer > 80 chars, speed up proportionally
+        if (typingSettings.adaptiveCatchUp && buffer.length > 80) {
+          var factor = Math.min(buffer.length / 80, 8);
+          base = Math.max(base / factor, 3);
+        }
+        return base;
+      }
+
+      function nextChunk() {
+        if (typingSettings.mode === 'word') {
+          // Emit next word (up to and including trailing whitespace)
+          var m = buffer.match(/^\S*\s*/);
+          return m ? m[0] : buffer.charAt(0);
+        }
+        return buffer.charAt(0);
+      }
+
+      function tick() {
+        if (cancelled) return;
+
+        if (buffer.length === 0) {
+          if (streamDone) {
+            // All done
+            cursorEl.style.display = 'none';
+            timer = null;
+            return;
+          }
+          // Waiting for more tokens
+          timer = setTimeout(tick, 50);
+          return;
+        }
+
+        var chunk = nextChunk();
+        buffer = buffer.slice(chunk.length);
+        rendered += chunk;
+        contentEl.innerHTML = formatMarkdown(rendered);
+        scrollFn();
+
+        timer = setTimeout(tick, effectiveDelay());
+      }
+
+      return {
+        push: function(delta) {
+          if (cancelled) return;
+          buffer += delta;
+          if (!started) {
+            started = true;
+            timer = setTimeout(tick, typingSettings.startDelay);
+          }
+        },
+        finish: function() {
+          streamDone = true;
+          // If typewriter is disabled or was cancelled, flush immediately
+          if (!typingSettings.enabled || cancelled) {
+            this.flush();
+          }
+        },
+        flush: function() {
+          if (timer) { clearTimeout(timer); timer = null; }
+          rendered += buffer;
+          buffer = '';
+          contentEl.innerHTML = formatMarkdown(rendered);
+          cursorEl.style.display = 'none';
+          scrollFn();
+        },
+        cancel: function() {
+          cancelled = true;
+          if (timer) { clearTimeout(timer); timer = null; }
+        },
+        isIdle: function() {
+          return buffer.length === 0 && streamDone;
+        },
+        getFullText: function() {
+          return rendered + buffer;
+        }
+      };
+    }
 
     /* ── Restore saved mode on load ─────────────────────── */
     (function restoreMode() {
@@ -285,10 +455,19 @@
       input.value = '';
     }
 
-    /* ── Text Chat with SSE Streaming ──────────────────── */
+    /* ── Active typewriter instance (for cancel on new prompt) ── */
+    var activeTypewriter = null;
+
+    /* ── Text Chat with SSE Streaming + Typewriter ─────── */
     function sendChat(text) {
       chatArea.style.display = '';
       imageResult.style.display = 'none';
+
+      // Cancel any active typewriter (user sent new prompt)
+      if (activeTypewriter) {
+        activeTypewriter.cancel();
+        activeTypewriter = null;
+      }
 
       // Add user message
       var userDiv = document.createElement('div');
@@ -319,7 +498,15 @@
       abortCtrl = new AbortController();
 
       var firstTokenReceived = false;
-      var fullText = '';
+
+      // Reload settings in case they changed
+      typingSettings = loadTypingSettings();
+
+      // Create typewriter instance for this message
+      var tw = typingSettings.enabled
+        ? createTypewriter(contentEl, cursorEl, scrollChat)
+        : null;
+      activeTypewriter = tw;
 
       // Use fetch + ReadableStream for SSE
       fetch('/v1/chat', {
@@ -335,14 +522,20 @@
         var reader = response.body.getReader();
         var decoder = new TextDecoder();
         var buffer = '';
+        var fullText = '';
 
         function processStream() {
           return reader.read().then(function(result) {
             if (result.done) {
               // Stream ended
-              cursorEl.style.display = 'none';
+              if (tw) {
+                tw.finish();
+              } else {
+                cursorEl.style.display = 'none';
+              }
               isStreaming = false;
               sendBtn.disabled = false;
+              activeTypewriter = null;
               input.focus();
               return;
             }
@@ -368,16 +561,28 @@
                       firstTokenReceived = true;
                       thinkingEl.style.display = 'none';
                     }
-                    fullText += payload.delta;
-                    contentEl.innerHTML = formatMarkdown(fullText);
-                    scrollChat();
+
+                    if (tw) {
+                      // Typewriter: push token to buffer
+                      tw.push(payload.delta);
+                    } else {
+                      // Instant: render directly
+                      fullText += payload.delta;
+                      contentEl.innerHTML = formatMarkdown(fullText);
+                      scrollChat();
+                    }
                   }
 
                   if (eventType === 'done') {
-                    cursorEl.style.display = 'none';
+                    if (tw) {
+                      tw.finish();
+                    } else {
+                      cursorEl.style.display = 'none';
+                    }
                   }
 
                   if (eventType === 'error') {
+                    if (tw) tw.cancel();
                     thinkingEl.style.display = 'none';
                     cursorEl.style.display = 'none';
                     contentEl.innerHTML = '<span style="color:var(--red)">' +
@@ -396,11 +601,13 @@
         return processStream();
       }).catch(function(err) {
         if (err.name === 'AbortError') return;
+        if (tw) tw.cancel();
         thinkingEl.style.display = 'none';
         cursorEl.style.display = 'none';
         contentEl.innerHTML = '<span style="color:var(--red)">Could not reach the AI service. It may be loading.</span>';
         isStreaming = false;
         sendBtn.disabled = false;
+        activeTypewriter = null;
       });
     }
 
@@ -471,6 +678,68 @@
         input.focus();
       });
     }
+
+    /* ── Typing Gear Popover ──────────────────────────────── */
+    var gearBtn    = document.getElementById('typing-gear-btn');
+    var gearMenu   = document.getElementById('typing-gear-menu');
+    var gearWrap   = document.getElementById('typing-gear');
+    var twEnabled  = document.getElementById('tw-enabled');
+    var twMode     = document.getElementById('tw-mode');
+    var twSpeed    = document.getElementById('tw-speed');
+    var twSpeedVal = document.getElementById('tw-speed-val');
+    var twAdaptive = document.getElementById('tw-adaptive');
+    var twModeRow  = document.getElementById('tw-mode-row');
+    var twSpeedRow = document.getElementById('tw-speed-row');
+    var twAdaptiveRow = document.getElementById('tw-adaptive-row');
+
+    // Populate UI from settings
+    function syncTypingUI() {
+      twEnabled.checked  = typingSettings.enabled;
+      twMode.value       = typingSettings.mode;
+      twSpeed.value      = typingSettings.speed;
+      twSpeedVal.textContent = typingSettings.speed;
+      twAdaptive.checked = typingSettings.adaptiveCatchUp;
+      var show = typingSettings.enabled;
+      twModeRow.style.display     = show ? '' : 'none';
+      twSpeedRow.style.display    = show ? '' : 'none';
+      twAdaptiveRow.style.display = show ? '' : 'none';
+    }
+    syncTypingUI();
+
+    function openGear()  { gearWrap.classList.add('typing-gear--open'); gearBtn.setAttribute('aria-expanded','true'); }
+    function closeGear() { gearWrap.classList.remove('typing-gear--open'); gearBtn.setAttribute('aria-expanded','false'); }
+
+    gearBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      gearWrap.classList.contains('typing-gear--open') ? closeGear() : openGear();
+    });
+    document.addEventListener('click', function(e) {
+      if (!gearWrap.contains(e.target)) closeGear();
+    });
+
+    function updateTypingSetting() {
+      typingSettings.enabled         = twEnabled.checked;
+      typingSettings.mode            = twMode.value;
+      typingSettings.speed           = parseInt(twSpeed.value, 10);
+      typingSettings.adaptiveCatchUp = twAdaptive.checked;
+      twSpeedVal.textContent = twSpeed.value;
+      var show = typingSettings.enabled;
+      twModeRow.style.display     = show ? '' : 'none';
+      twSpeedRow.style.display    = show ? '' : 'none';
+      twAdaptiveRow.style.display = show ? '' : 'none';
+      saveTypingSettings(typingSettings);
+    }
+
+    twEnabled.addEventListener('change', function() {
+      updateTypingSetting();
+      // If disabled mid-stream, flush active typewriter immediately
+      if (!this.checked && activeTypewriter) {
+        activeTypewriter.flush();
+      }
+    });
+    twMode.addEventListener('change', updateTypingSetting);
+    twSpeed.addEventListener('input', updateTypingSetting);
+    twAdaptive.addEventListener('change', updateTypingSetting);
 
   })();
   </script>

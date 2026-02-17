@@ -1261,6 +1261,124 @@ a { color: inherit; text-decoration: none; }
   opacity: 1;
 }
 
+/* ── Typing Gear Settings Popover ──────────────────────── */
+.typing-gear {
+  position: relative;
+}
+.typing-gear__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all .2s;
+  padding: 0;
+  opacity: .5;
+}
+.typing-gear__btn:hover {
+  opacity: .8;
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+.typing-gear--open .typing-gear__btn {
+  opacity: 1;
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.typing-gear__btn svg {
+  transition: transform .3s;
+}
+.typing-gear--open .typing-gear__btn svg {
+  transform: rotate(90deg);
+}
+
+.typing-gear__popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px) scale(.97);
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 -8px 24px rgba(0,0,0,.5);
+  padding: 12px 14px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all .18s cubic-bezier(.4,0,.2,1);
+  z-index: 200;
+}
+.typing-gear--open .typing-gear__popover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.typing-gear__title {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.typing-gear__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+}
+.typing-gear__row + .typing-gear__row {
+  border-top: 1px solid var(--border);
+}
+
+.typing-gear__label {
+  font-size: .78rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.typing-gear__select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: .75rem;
+  font-family: var(--font);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.typing-gear__select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.typing-gear__range {
+  width: 90px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Small toggle variant */
+.ai-toggle--sm .ai-toggle__slider {
+  width: 32px; height: 18px;
+  border-radius: 9px;
+}
+.ai-toggle--sm .ai-toggle__slider::after {
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+}
+.ai-toggle--sm input:checked + .ai-toggle__slider::after {
+  transform: translateX(14px);
+}
+
 .landing-quota {
   text-align: center;
   font-size: .7rem;
