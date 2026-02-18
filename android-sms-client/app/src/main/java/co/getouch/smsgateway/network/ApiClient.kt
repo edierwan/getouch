@@ -31,8 +31,10 @@ class ApiClient(private val prefs: SecurePrefs) {
     /**
      * Pair device with server (no HMAC needed for initial pairing)
      */
-    suspend fun pair(serverUrl: String, deviceToken: String): ApiResult<PairResponse> {
-        val body = gson.toJson(mapOf("device_token" to deviceToken))
+    suspend fun pair(serverUrl: String, deviceToken: String, deviceInfo: Map<String, String>? = null): ApiResult<PairResponse> {
+        val bodyMap = mutableMapOf<String, Any>("device_token" to deviceToken)
+        deviceInfo?.let { bodyMap["device_info"] = it }
+        val body = gson.toJson(bodyMap)
         val request = Request.Builder()
             .url("$serverUrl/v1/sms/internal/android/pair")
             .post(body.toRequestBody(jsonType))
@@ -48,11 +50,14 @@ class ApiClient(private val prefs: SecurePrefs) {
     suspend fun heartbeat(
         batteryPct: Int? = null,
         isCharging: Boolean? = null,
-        networkType: String? = null
+        networkType: String? = null,
+        appVersion: String? = null
     ): ApiResult<HeartbeatResponse> {
         val payload = mutableMapOf<String, Any>()
         batteryPct?.let { payload["battery_pct"] = it }
         isCharging?.let { payload["is_charging"] = it }
+        networkType?.let { payload["network_type"] = it }
+        appVersion?.let { payload["app_version"] = it }
         networkType?.let { payload["network_type"] = it }
 
         return signedPost("/v1/sms/internal/android/heartbeat", payload)
@@ -215,13 +220,15 @@ data class PairResponse(
     val device_id: String,
     val device_name: String,
     val tenant_name: String,
-    val server_time: Long
+    val server_time: Long,
+    val poll_interval_seconds: Int = 10
 )
 
 data class HeartbeatResponse(
     val ok: Boolean,
     val device_id: String,
-    val server_time: Long
+    val server_time: Long,
+    val poll_interval_seconds: Int = 10
 )
 
 data class PullOutboundResponse(

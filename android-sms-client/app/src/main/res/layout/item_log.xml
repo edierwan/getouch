@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="6dp"
+    android:gravity="top">
+
+    <!-- Timestamp -->
+    <TextView
+        android:id="@+id/logTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="01-01 00:00:00"
+        android:textSize="10sp"
+        android:textColor="#52525B"
+        android:fontFamily="monospace"
+        android:layout_marginEnd="6dp" />
+
+    <!-- Level badge -->
+    <TextView
+        android:id="@+id/logLevel"
+        android:layout_width="38dp"
+        android:layout_height="wrap_content"
+        android:text="INFO"
+        android:textSize="9sp"
+        android:textColor="#22C55E"
+        android:fontFamily="monospace"
+        android:textStyle="bold"
+        android:layout_marginEnd="6dp" />
+
+    <!-- Tag -->
+    <TextView
+        android:id="@+id/logTag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tag"
+        android:textSize="11sp"
+        android:textColor="#A1A1AA"
+        android:fontFamily="monospace"
+        android:layout_marginEnd="6dp"
+        android:maxWidth="72dp"
+        android:singleLine="true" />
+
+    <!-- Message -->
+    <TextView
+        android:id="@+id/logMessage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Message"
+        android:textSize="11sp"
+        android:textColor="#D4D4D8"
+        android:fontFamily="monospace"
+        android:maxLines="3"
+        android:ellipsize="end" />
+
+</LinearLayout>

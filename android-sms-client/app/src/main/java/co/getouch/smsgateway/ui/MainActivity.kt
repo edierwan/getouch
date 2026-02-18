@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var queueCountText: TextView
     private lateinit var pairButton: Button
     private lateinit var unpairButton: Button
+    private lateinit var logsButton: Button
     private lateinit var statusCard: View
     private lateinit var notPairedCard: View
 
@@ -62,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         queueCountText = findViewById(R.id.queueCount)
         pairButton = findViewById(R.id.btnPair)
         unpairButton = findViewById(R.id.btnUnpair)
+        logsButton = findViewById(R.id.btnLogs)
         statusCard = findViewById(R.id.statusCard)
         notPairedCard = findViewById(R.id.notPairedCard)
 
@@ -71,6 +73,10 @@ class MainActivity : AppCompatActivity() {
 
         unpairButton.setOnClickListener {
             showUnpairConfirmation()
+        }
+
+        logsButton.setOnClickListener {
+            startActivity(Intent(this, LogsActivity::class.java))
         }
 
         requestPermissions()

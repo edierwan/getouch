@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import co.getouch.smsgateway.GatewayApp
 import co.getouch.smsgateway.R
+import co.getouch.smsgateway.data.EventLogger
 import co.getouch.smsgateway.network.ApiClient
 import co.getouch.smsgateway.network.ApiResult
 import co.getouch.smsgateway.network.OfflineQueue
@@ -131,19 +132,23 @@ class GatewayForegroundService : Service() {
         val result = apiClient.heartbeat(
             batteryPct = batteryStatus.first,
             isCharging = batteryStatus.second,
-            networkType = networkType
+            networkType = networkType,
+            appVersion = getAppVersion()
         )
 
         when (result) {
             is ApiResult.Success -> {
                 val app = application as GatewayApp
                 app.securePrefs.lastSyncTime = System.currentTimeMillis()
-                updateNotification("Online" +
+                val statusMsg = "Online" +
                     (batteryStatus.first?.let { " · ${it}%" } ?: "") +
-                    " · ${networkType ?: "unknown"}")
+                    " · ${networkType ?: "unknown"}"
+                updateNotification(statusMsg)
+                EventLogger.info("Heartbeat", "OK · $statusMsg")
             }
             is ApiResult.Error -> {
                 updateNotification("Offline · ${result.message}")
+                EventLogger.warn("Heartbeat", "Failed: ${result.message}")
                 Log.w(TAG, "Heartbeat failed: ${result.message}")
             }
         }
@@ -156,6 +161,7 @@ class GatewayForegroundService : Service() {
                 val messages = result.data.messages
                 if (messages.isNotEmpty()) {
                     Log.d(TAG, "Got ${messages.size} outbound message(s)")
+                    EventLogger.info("Outbound", "Pulled ${messages.size} message(s) to send")
                     for (msg in messages) {
                         sendOutboundSms(msg.message_id, msg.to_number, msg.body)
                     }
@@ -174,6 +180,7 @@ class GatewayForegroundService : Service() {
             scope.launch {
                 try {
                     offlineQueue.queueOutboundAck(messageId, status, errorCode, errorMessage)
+                    EventLogger.info("SMS Send", "$messageId → $status")
                     Log.d(TAG, "Outbound $messageId: $status")
                 } catch (e: Exception) {
                     Log.e(TAG, "ACK queue error", e)
@@ -207,6 +214,12 @@ class GatewayForegroundService : Service() {
                 else -> "other"
             }
         } catch (_: Exception) { null }
+    }
+
+    private fun getAppVersion(): String {
+        return try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
+        } catch (_: Exception) { "1.0.0" }
     }
 
     private fun buildNotification(text: String): Notification {

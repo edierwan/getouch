@@ -38,9 +38,10 @@ interface PendingEventDao {
     suspend fun deleteAll()
 }
 
-@Database(entities = [PendingEvent::class], version = 1, exportSchema = false)
+@Database(entities = [PendingEvent::class, EventLog::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingEventDao(): PendingEventDao
+    abstract fun eventLogDao(): EventLogDao
 
     companion object {
         @Volatile

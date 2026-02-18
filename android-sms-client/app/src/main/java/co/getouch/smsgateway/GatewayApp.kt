@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import co.getouch.smsgateway.data.AppDatabase
+import co.getouch.smsgateway.data.EventLogger
 import co.getouch.smsgateway.data.SecurePrefs
 
 class GatewayApp : Application() {
@@ -19,6 +20,7 @@ class GatewayApp : Application() {
         instance = this
         securePrefs = SecurePrefs(this)
         database = AppDatabase.getInstance(this)
+        EventLogger.init(database.eventLogDao())
         createNotificationChannel()
     }
 

@@ -11,6 +11,7 @@ import android.telephony.SmsManager
 import android.telephony.SmsMessage
 import android.util.Log
 import co.getouch.smsgateway.GatewayApp
+import co.getouch.smsgateway.data.EventLogger
 import co.getouch.smsgateway.network.ApiClient
 import co.getouch.smsgateway.network.OfflineQueue
 import kotlinx.coroutines.*
@@ -54,6 +55,7 @@ class SmsReceiver : BroadcastReceiver() {
                         messageRef = messageRef
                     )
                     Log.d(TAG, "Inbound SMS from $from queued (ref: ${messageRef.take(8)})")
+                    EventLogger.info("Inbound", "SMS from $from (${body.toString().take(30)}…)")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error processing inbound SMS", e)
                 }

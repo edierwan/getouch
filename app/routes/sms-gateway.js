@@ -307,7 +307,7 @@ function verifyDeviceSignature(req, res, next) {
  * Android app calls this after scanning QR / entering token manually
  */
 router.post('/internal/android/pair', async (req, res) => {
-  const { device_token } = req.body || {};
+  const { device_token, device_info } = req.body || {};
   if (!device_token) {
     return res.status(400).json({ error: '`device_token` required' });
   }
@@ -332,10 +332,12 @@ router.post('/internal/android/pair', async (req, res) => {
       return res.status(403).json({ error: 'Device is disabled' });
     }
 
-    // Update device status to online on successful pair
+    // Update device status + store device_info metadata
+    const metaUpdate = device_info ? { device_info, paired_at: new Date().toISOString() } : { paired_at: new Date().toISOString() };
     await smsQuery(
-      `UPDATE sms_devices SET status = 'online', last_seen_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [device.id]
+      `UPDATE sms_devices SET status = 'online', last_seen_at = NOW(), updated_at = NOW(),
+       metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1`,
+      [device.id, JSON.stringify(metaUpdate)]
     );
 
     await auditLog({
@@ -344,7 +346,7 @@ router.post('/internal/android/pair', async (req, res) => {
       actor: 'android-app',
       resourceType: 'device',
       resourceId: device.id,
-      details: { name: device.name },
+      details: { name: device.name, device_info },
     });
 
     res.json({
@@ -353,6 +355,7 @@ router.post('/internal/android/pair', async (req, res) => {
       device_name: device.name,
       tenant_name: device.tenant_name || 'Default',
       server_time: Date.now(),
+      poll_interval_seconds: 10,
     });
   } catch (err) {
     console.error('[sms-android] Pair error:', err.message);
@@ -364,7 +367,7 @@ router.post('/internal/android/pair', async (req, res) => {
  * POST /v1/sms/internal/android/heartbeat — Device heartbeat with HMAC
  */
 router.post('/internal/android/heartbeat', verifyDeviceSignature, async (req, res) => {
-  const { battery_pct, is_charging, network_type } = req.body || {};
+  const { battery_pct, is_charging, network_type, app_version } = req.body || {};
 
   try {
     const device = await recordDeviceHeartbeat(req.deviceToken);
@@ -373,18 +376,23 @@ router.post('/internal/android/heartbeat', verifyDeviceSignature, async (req, re
     }
 
     // Store extended metadata
-    if (battery_pct !== undefined || network_type) {
-      const { smsQuery } = require('../lib/sms-db');
-      await smsQuery(
-        `UPDATE sms_devices SET metadata = metadata || $2::jsonb, updated_at = NOW() WHERE id = $1`,
-        [device.id, JSON.stringify({ battery_pct, is_charging, network_type, last_heartbeat_detail: Date.now() })]
-      );
-    }
+    const meta = { last_heartbeat_detail: Date.now() };
+    if (battery_pct !== undefined) meta.battery_pct = battery_pct;
+    if (is_charging !== undefined) meta.is_charging = is_charging;
+    if (network_type) meta.network_type = network_type;
+    if (app_version) meta.app_version = app_version;
+
+    const { smsQuery } = require('../lib/sms-db');
+    await smsQuery(
+      `UPDATE sms_devices SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb, updated_at = NOW() WHERE id = $1`,
+      [device.id, JSON.stringify(meta)]
+    );
 
     res.json({
       ok: true,
       device_id: device.id,
       server_time: Date.now(),
+      poll_interval_seconds: 10,
     });
   } catch (err) {
     console.error('[sms-android] Heartbeat error:', err.message);

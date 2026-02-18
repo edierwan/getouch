@@ -56,6 +56,11 @@
             android:name=".ui.BatteryOptActivity"
             android:exported="false" />
 
+        <!-- Event logs -->
+        <activity
+            android:name=".ui.LogsActivity"
+            android:exported="false" />
+
         <!-- SMS Receiver -->
         <receiver
             android:name=".sms.SmsReceiver"

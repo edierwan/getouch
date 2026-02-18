@@ -752,6 +752,32 @@ async function initSmsSchema() {
   } catch (err) {
     console.error('[sms-db] Migration 003 error (may already exist):', err.message);
   }
+
+  // Migration 005 — SMS devices fix
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const sql005 = fs.readFileSync(
+      path.join(__dirname, '..', 'migrations', '005_sms_devices_fix.sql'), 'utf8'
+    );
+    await smsPool.query(sql005);
+    console.log('[sms-db] Migration 005 (devices fix) applied');
+  } catch (err) {
+    console.error('[sms-db] Migration 005 error (may already exist):', err.message);
+  }
+
+  // Migration 006 — Android device enhancements
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const sql006 = fs.readFileSync(
+      path.join(__dirname, '..', 'migrations', '006_android_device_enhancements.sql'), 'utf8'
+    );
+    await smsPool.query(sql006);
+    console.log('[sms-db] Migration 006 (android enhancements) applied');
+  } catch (err) {
+    console.error('[sms-db] Migration 006 error (may already exist):', err.message);
+  }
 }
 
 /* ── DB Debug Info (admin only) ────────────────────────── */

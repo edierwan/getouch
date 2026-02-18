@@ -1,11 +1,13 @@
 package co.getouch.smsgateway.ui
 
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import co.getouch.smsgateway.GatewayApp
 import co.getouch.smsgateway.R
+import co.getouch.smsgateway.data.EventLogger
 import co.getouch.smsgateway.network.ApiClient
 import co.getouch.smsgateway.network.ApiResult
 import co.getouch.smsgateway.service.GatewayForegroundService
@@ -68,6 +70,7 @@ class PairingActivity : AppCompatActivity() {
             val token = tokenInput.text.toString().trim()
             if (url.isBlank() || token.isBlank()) {
                 statusText.text = "Please enter server URL and token"
+                statusText.visibility = View.VISIBLE
                 return@setOnClickListener
             }
             doPairing(url, token)
@@ -109,11 +112,18 @@ class PairingActivity : AppCompatActivity() {
     private fun doPairing(serverUrl: String, deviceToken: String) {
         setLoading(true)
         statusText.text = "Connecting to server…"
+        statusText.visibility = View.VISIBLE
+
+        val deviceInfo = mapOf(
+            "model" to "${Build.MANUFACTURER} ${Build.MODEL}",
+            "android_version" to "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            "app_version" to getAppVersion()
+        )
 
         scope.launch {
             val apiClient = ApiClient(prefs)
             val result = withContext(Dispatchers.IO) {
-                apiClient.pair(serverUrl, deviceToken)
+                apiClient.pair(serverUrl, deviceToken, deviceInfo)
             }
 
             when (result) {
@@ -127,6 +137,7 @@ class PairingActivity : AppCompatActivity() {
                     prefs.isPaired = true
 
                     statusText.text = "Paired! Device: ${data.device_name}"
+                    EventLogger.info("Pairing", "Paired as ${data.device_name} (tenant: ${data.tenant_name})")
 
                     // Start the gateway service
                     GatewayForegroundService.start(this@PairingActivity)
@@ -146,6 +157,7 @@ class PairingActivity : AppCompatActivity() {
                 is ApiResult.Error -> {
                     setLoading(false)
                     statusText.text = "Pairing failed: ${result.message}"
+                    EventLogger.error("Pairing", "Failed: ${result.message}")
                 }
             }
         }
@@ -155,5 +167,11 @@ class PairingActivity : AppCompatActivity() {
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         connectButton.isEnabled = !loading
         scanQrButton.isEnabled = !loading
+    }
+
+    private fun getAppVersion(): String {
+        return try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
+        } catch (_: Exception) { "1.0.0" }
     }
 }
