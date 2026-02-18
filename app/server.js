@@ -452,11 +452,8 @@ initSchema()
   .then(() => runMigrations())
   .then(() => {
     // Start SMS worker
-    smsWorker.startWorker().then(() => {
-      console.log('[sms] Worker started');
-    }).catch(err => {
-      console.error('[sms] Worker start error:', err.message);
-    });
+    try { smsWorker.startWorker(); console.log('[sms] Worker started'); }
+    catch(err) { console.error('[sms] Worker start error:', err.message); }
 
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`[app] v${VERSION} → http://localhost:${PORT}`);
@@ -478,7 +475,7 @@ initSchema()
       if (shuttingDown) return;
       shuttingDown = true;
       console.log(`[app] ${signal} — closing`);
-      smsWorker.stopWorker().catch(() => {});
+      try { smsWorker.stopWorker(); } catch(_) {}
       server.close(() => {
         endAll().then(() => process.exit(0));
       });
