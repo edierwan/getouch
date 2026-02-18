@@ -1,0 +1,99 @@
+name: Android Release — APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+defaults:
+  run:
+    working-directory: android-sms-client
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android-sms-client/**/*.gradle*', 'android-sms-client/**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Check signing secrets
+        id: signing
+        run: |
+          if [[ -n "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Signing secrets not configured — building unsigned release APK"
+          fi
+
+      - name: Decode Keystore
+        if: steps.signing.outputs.available == 'true'
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.jks
+
+      - name: Build signed release APK
+        if: steps.signing.outputs.available == 'true'
+        run: ./gradlew assembleRelease --no-daemon
+        env:
+          KEYSTORE_FILE: release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Build unsigned release APK (fallback)
+        if: steps.signing.outputs.available != 'true'
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          if [[ -z "$APK_PATH" ]]; then
+            echo "❌ No APK found"
+            exit 1
+          fi
+          SUFFIX=""
+          if [[ "${{ steps.signing.outputs.available }}" != "true" ]]; then
+            SUFFIX="-unsigned"
+          fi
+          cp "$APK_PATH" "getouch-sms-gateway-${VERSION}${SUFFIX}.apk"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android-sms-client/getouch-sms-gateway-*.apk
+          generate_release_notes: true
+          body: |
+            ## Getouch SMS Gateway ${{ github.ref_name }}
+
+            ${{ steps.signing.outputs.available != 'true' && '⚠️ **Unsigned APK** — signing secrets not configured. You may need to enable "Install from unknown sources" and the APK will show an "unverified" warning.' || '✅ **Signed APK** — ready for production install.' }}
+
+            ### Install
+            1. Download the APK to your Android device
+            2. Open the APK file to install
+            3. Open "Getouch SMS" app
+            4. Go to getouch.co Admin → SMS Gateway → Devices → Rotate → copy token
+            5. Paste token into app → Pair
+            6. Device should appear Online within 60 seconds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
