@@ -266,10 +266,321 @@ router.get('/inbox', requireSmsApiKey('sms:inbox'), async (req, res) => {
   }
 });
 
-/* ━━━ Internal Ingestion Endpoints ━━━━━━━━━━━━━━━━━━━━ */
+/* ━━━ Android Device Endpoints ━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /**
- * POST /v1/sms/internal/inbound — Inbound SMS ingestion
+ * Verify HMAC signature from Android devices
+ * Signature = HMAC-SHA256(device_token, device_id + timestamp + nonce + body)
+ */
+function verifyDeviceSignature(req, res, next) {
+  const sig       = req.headers['x-device-signature'];
+  const deviceId  = req.headers['x-device-id'];
+  const ts        = req.headers['x-timestamp'];
+  const nonce     = req.headers['x-nonce'];
+  const token     = req.headers['x-device-token'];
+
+  if (!sig || !deviceId || !ts || !nonce || !token) {
+    return res.status(401).json({ error: 'Missing device auth headers' });
+  }
+
+  // Reject if timestamp > 5 min old
+  const age = Math.abs(Date.now() - parseInt(ts, 10));
+  if (isNaN(age) || age > 5 * 60 * 1000) {
+    return res.status(401).json({ error: 'Request expired (clock skew > 5 min)' });
+  }
+
+  const body = JSON.stringify(req.body || {});
+  const payload = `${deviceId}:${ts}:${nonce}:${body}`;
+  const expected = crypto.createHmac('sha256', token).update(payload).digest('hex');
+
+  if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+
+  req.deviceToken = token;
+  req.deviceIdHeader = deviceId;
+  next();
+}
+
+/**
+ * POST /v1/sms/internal/android/pair — Validate pairing token
+ * Android app calls this after scanning QR / entering token manually
+ */
+router.post('/internal/android/pair', async (req, res) => {
+  const { device_token } = req.body || {};
+  if (!device_token) {
+    return res.status(400).json({ error: '`device_token` required' });
+  }
+
+  try {
+    const { smsQuery } = require('../lib/sms-db');
+    const dev = await smsQuery(
+      `SELECT d.id, d.name, d.phone_number, d.status, d.is_enabled,
+              t.id as tenant_id, t.name as tenant_name, t.slug as tenant_slug
+       FROM sms_devices d
+       LEFT JOIN sms_tenants t ON t.id = d.tenant_id
+       WHERE d.device_token = $1`,
+      [device_token]
+    );
+
+    if (!dev.rows[0]) {
+      return res.status(404).json({ error: 'Invalid pairing token' });
+    }
+
+    const device = dev.rows[0];
+    if (!device.is_enabled) {
+      return res.status(403).json({ error: 'Device is disabled' });
+    }
+
+    // Update device status to online on successful pair
+    await smsQuery(
+      `UPDATE sms_devices SET status = 'online', last_seen_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [device.id]
+    );
+
+    await auditLog({
+      tenantId: device.tenant_id,
+      action: 'device.paired',
+      actor: 'android-app',
+      resourceType: 'device',
+      resourceId: device.id,
+      details: { name: device.name },
+    });
+
+    res.json({
+      ok: true,
+      device_id: device.id,
+      device_name: device.name,
+      tenant_name: device.tenant_name || 'Default',
+      server_time: Date.now(),
+    });
+  } catch (err) {
+    console.error('[sms-android] Pair error:', err.message);
+    res.status(500).json({ error: 'Pairing failed' });
+  }
+});
+
+/**
+ * POST /v1/sms/internal/android/heartbeat — Device heartbeat with HMAC
+ */
+router.post('/internal/android/heartbeat', verifyDeviceSignature, async (req, res) => {
+  const { battery_pct, is_charging, network_type } = req.body || {};
+
+  try {
+    const device = await recordDeviceHeartbeat(req.deviceToken);
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found or disabled' });
+    }
+
+    // Store extended metadata
+    if (battery_pct !== undefined || network_type) {
+      const { smsQuery } = require('../lib/sms-db');
+      await smsQuery(
+        `UPDATE sms_devices SET metadata = metadata || $2::jsonb, updated_at = NOW() WHERE id = $1`,
+        [device.id, JSON.stringify({ battery_pct, is_charging, network_type, last_heartbeat_detail: Date.now() })]
+      );
+    }
+
+    res.json({
+      ok: true,
+      device_id: device.id,
+      server_time: Date.now(),
+    });
+  } catch (err) {
+    console.error('[sms-android] Heartbeat error:', err.message);
+    res.status(500).json({ error: 'Heartbeat failed' });
+  }
+});
+
+/**
+ * POST /v1/sms/internal/android/pull-outbound — Pull pending messages for device
+ * Android app polls this to get messages assigned to it for sending
+ */
+router.post('/internal/android/pull-outbound', verifyDeviceSignature, async (req, res) => {
+  try {
+    const { smsQuery, getQueuedMessages, pickDevice } = require('../lib/sms-db');
+
+    // Resolve device
+    const dev = await smsQuery(
+      `SELECT id, tenant_id, is_shared_pool FROM sms_devices WHERE device_token = $1 AND is_enabled = true`,
+      [req.deviceToken]
+    );
+    if (!dev.rows[0]) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+    const device = dev.rows[0];
+
+    // Get queued messages assigned to this device or tenant
+    const msgs = await smsQuery(
+      `SELECT id, to_number, message_body, tenant_id, preferred_device_id, idempotency_key
+       FROM sms_outbound_messages
+       WHERE status = 'queued'
+         AND next_retry_at <= NOW()
+         AND attempts < max_attempts
+         AND (
+           preferred_device_id = $1
+           OR (preferred_device_id IS NULL AND tenant_id = $2)
+           OR (preferred_device_id IS NULL AND $3 = true)
+         )
+       ORDER BY next_retry_at ASC
+       LIMIT 5
+       FOR UPDATE SKIP LOCKED`,
+      [device.id, device.tenant_id, device.is_shared_pool]
+    );
+
+    if (msgs.rows.length === 0) {
+      return res.json({ messages: [] });
+    }
+
+    // Mark as processing and assign to this device
+    const messageIds = msgs.rows.map(m => m.id);
+    await smsQuery(
+      `UPDATE sms_outbound_messages
+       SET status = 'processing', from_device_id = $2, updated_at = NOW()
+       WHERE id = ANY($1::uuid[])`,
+      [messageIds, device.id]
+    );
+
+    const messages = msgs.rows.map(m => ({
+      message_id: m.id,
+      to_number: m.to_number,
+      body: m.message_body,
+      send_ref: m.idempotency_key || m.id,
+    }));
+
+    res.json({ messages });
+  } catch (err) {
+    console.error('[sms-android] Pull outbound error:', err.message);
+    res.status(500).json({ error: 'Failed to pull messages' });
+  }
+});
+
+/**
+ * POST /v1/sms/internal/android/outbound-ack — Acknowledge outbound send result
+ * Android app calls this after attempting to send SMS
+ */
+router.post('/internal/android/outbound-ack', verifyDeviceSignature, async (req, res) => {
+  const { message_id, status, error_code, error_message, external_ref } = req.body || {};
+
+  if (!message_id || !status) {
+    return res.status(400).json({ error: '`message_id` and `status` required' });
+  }
+
+  try {
+    const { markMessageSent, markMessageFailed } = require('../lib/sms-db');
+
+    if (status === 'sent') {
+      await markMessageSent(message_id, external_ref || null, null);
+
+      // Fire webhooks
+      const { smsQuery } = require('../lib/sms-db');
+      const m = await smsQuery('SELECT tenant_id FROM sms_outbound_messages WHERE id = $1', [message_id]);
+      if (m.rows[0]) {
+        fireWebhooksForEvent(m.rows[0].tenant_id, 'sms.sent', { message_id }).catch(() => {});
+      }
+    } else if (status === 'failed') {
+      const permanent = ['INVALID_NUMBER', 'BLOCKED', 'SIM_ERROR'].includes(error_code);
+      await markMessageFailed(message_id, error_message || 'Send failed', error_code || 'UNKNOWN', permanent);
+
+      const { smsQuery } = require('../lib/sms-db');
+      const m = await smsQuery('SELECT tenant_id FROM sms_outbound_messages WHERE id = $1', [message_id]);
+      if (m.rows[0]) {
+        fireWebhooksForEvent(m.rows[0].tenant_id, 'sms.failed', { message_id, error_code, error_message }).catch(() => {});
+      }
+    }
+
+    res.json({ ok: true, message_id });
+  } catch (err) {
+    console.error('[sms-android] Outbound ACK error:', err.message);
+    res.status(500).json({ error: 'Failed to process ACK' });
+  }
+});
+
+/**
+ * POST /v1/sms/internal/android/inbound — Inbound SMS from Android device with HMAC
+ */
+router.post('/internal/android/inbound', verifyDeviceSignature, async (req, res) => {
+  const { from_number, to_number, body, received_at, message_ref } = req.body || {};
+
+  if (!from_number || !body) {
+    return res.status(400).json({ error: '`from_number` and `body` required' });
+  }
+
+  try {
+    const { smsQuery } = require('../lib/sms-db');
+    let tenantId = null;
+    let deviceId = null;
+
+    const dev = await smsQuery(
+      `SELECT id, tenant_id FROM sms_devices WHERE device_token = $1`,
+      [req.deviceToken]
+    );
+    if (dev.rows[0]) {
+      deviceId = dev.rows[0].id;
+      tenantId = dev.rows[0].tenant_id;
+    }
+
+    if (!tenantId) {
+      const defaultTenant = await getDefaultTenant();
+      tenantId = defaultTenant?.id;
+    }
+
+    if (!tenantId) {
+      return res.status(400).json({ error: 'No tenant resolved' });
+    }
+
+    const msg = await createInboundMessage({
+      tenantId,
+      deviceId,
+      fromNumber: from_number,
+      toNumber: to_number,
+      messageBody: body,
+      externalId: message_ref,
+      metadata: { received_at, source: 'android-app' },
+    });
+
+    fireWebhooksForEvent(tenantId, 'sms.inbound', {
+      message_id: msg.id, from: from_number, to: to_number, message: body,
+    }).catch(() => {});
+
+    res.status(201).json({ ok: true, id: msg.id });
+  } catch (err) {
+    console.error('[sms-android] Inbound error:', err.message);
+    res.status(500).json({ error: 'Failed to process inbound SMS' });
+  }
+});
+
+/**
+ * POST /v1/sms/internal/android/delivery — Delivery report from Android with HMAC
+ */
+router.post('/internal/android/delivery', verifyDeviceSignature, async (req, res) => {
+  const { message_id, status, external_ref } = req.body || {};
+
+  if (!message_id) {
+    return res.status(400).json({ error: '`message_id` required' });
+  }
+
+  try {
+    if (status === 'delivered') {
+      await markMessageDelivered(message_id);
+      const { smsQuery } = require('../lib/sms-db');
+      const m = await smsQuery('SELECT tenant_id FROM sms_outbound_messages WHERE id = $1', [message_id]);
+      if (m.rows[0]) {
+        fireWebhooksForEvent(m.rows[0].tenant_id, 'sms.delivered', { message_id }).catch(() => {});
+      }
+    }
+
+    res.json({ ok: true, message_id });
+  } catch (err) {
+    console.error('[sms-android] Delivery error:', err.message);
+    res.status(500).json({ error: 'Failed to process delivery report' });
+  }
+});
+
+/* ━━━ Legacy Internal Ingestion Endpoints ━━━━━━━━━━━━━━ */
+
+/**
+ * POST /v1/sms/internal/inbound — Inbound SMS ingestion (legacy, shared-secret auth)
  * Called by android-sms-gateway when device receives an SMS
  */
 router.post('/internal/inbound', requireInternalAuth, async (req, res) => {

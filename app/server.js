@@ -20,6 +20,7 @@ const imageRoutes       = require('./routes/image');
 const settingsRoutes    = require('./routes/settings');
 const smsGatewayRoutes  = require('./routes/sms-gateway');
 const smsAdminRoutes    = require('./routes/sms-admin');
+const waAdminRoutes     = require('./routes/wa-admin');
 const smsWorker         = require('./lib/sms-worker');
 
 /* ── Config ─────────────────────────────────────────────── */
@@ -64,6 +65,7 @@ function reloadPages() {
   pages.admin      = loadPage('admin.html');
   pages.ops        = loadPage('ops.html');
   pages.smsAdmin   = loadPage('sms-admin.html');
+  pages.waAdmin    = loadPage('wa-admin.html');
   pages.tryBot     = loadPage('try-bot.html');
   pages.tryWhatsapp = loadPage('try-whatsapp.html');
 }
@@ -124,6 +126,7 @@ app.use('/v1', imageRoutes);
 app.use('/v1/admin', settingsRoutes);
 app.use('/v1/sms', smsGatewayRoutes);
 app.use('/v1/admin/sms', smsAdminRoutes);
+app.use('/v1/admin/wa', waAdminRoutes);
 
 /* ── Authenticated API endpoints ─────────────────────────── */
 app.get('/api/me', requireAuth, async (req, res) => {
@@ -238,6 +241,15 @@ app.get('/admin/services/sms', (req, res) => {
     req.session.cfEmail = cfEmail;
   }
   res.type('html').send(pages.smsAdmin);
+});
+
+app.get('/admin/services/whatsapp', (req, res) => {
+  if (isDev) reloadPages();
+  const cfEmail = req.headers['cf-access-authenticated-user-email'];
+  if (cfEmail && req.session) {
+    req.session.cfEmail = cfEmail;
+  }
+  res.type('html').send(pages.waAdmin);
 });
 
 /* ── Dashboard (authenticated) ───────────────────────────── */

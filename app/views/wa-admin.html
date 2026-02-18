@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Gateway — Getouch Admin</title>
+  <link rel="stylesheet" href="/css/styles.css?v={{VERSION}}">
+  <style>
+    .wa-tabs{display:flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:24px;overflow-x:auto}
+    .wa-tab{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:.8rem;font-weight:600;color:var(--text-muted);background:0;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;font-family:var(--font);white-space:nowrap}
+    .wa-tab:hover{color:var(--text);background:var(--bg)}
+    .wa-tab.active{color:var(--accent);background:var(--accent-glow)}
+    .wa-panel{display:none;animation:panelIn .2s ease}
+    .wa-panel.active{display:block}
+
+    .wa-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:24px}
+    .wa-kpi{padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center}
+    .wa-kpi__value{font-size:1.5rem;font-weight:800;color:var(--text);letter-spacing:-.02em}
+    .wa-kpi__value--green{color:var(--green)}
+    .wa-kpi__value--red{color:var(--red)}
+    .wa-kpi__value--yellow{color:var(--yellow)}
+    .wa-kpi__label{font-size:.68rem;color:var(--text-dim);margin-top:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+
+    .wa-status-banner{padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:20px;display:flex;align-items:center;gap:12px}
+    .wa-status-banner--online{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2)}
+    .wa-status-banner--degraded{background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2)}
+    .wa-status-banner--offline{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)}
+    .wa-status-banner__dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .wa-status-banner__dot--online{background:var(--green)}
+    .wa-status-banner__dot--degraded{background:var(--yellow);animation:pulse 2s ease-in-out infinite}
+    .wa-status-banner__dot--offline{background:var(--red)}
+    .wa-status-banner__text{font-size:.85rem;font-weight:600;color:var(--text)}
+
+    .wa-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .wa-table th{text-align:left;padding:10px 12px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:600;border-bottom:1px solid var(--border);background:var(--surface)}
+    .wa-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text-muted);vertical-align:middle}
+    .wa-table tr:hover td{background:var(--surface-hover)}
+    .wa-table__mono{font-family:var(--font-mono);font-size:.72rem}
+
+    .wa-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:.65rem;font-weight:600;border-radius:var(--radius-full);white-space:nowrap}
+    .wa-badge--connected{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .wa-badge--disconnected{color:var(--red);background:var(--red-bg);border:1px solid var(--red-border)}
+    .wa-badge--qr_pending{color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-border)}
+    .wa-badge--connecting{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-border)}
+    .wa-badge--failed{color:var(--red);background:var(--red-bg);border:1px solid var(--red-border)}
+    .wa-badge--active{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .wa-badge--suspended{color:var(--red);background:var(--red-bg);border:1px solid var(--red-border)}
+    .wa-badge--sent{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .wa-badge--delivered{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .wa-badge--read{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-border)}
+    .wa-badge--queued{color:var(--text-dim);background:rgba(113,113,122,.1);border:1px solid rgba(113,113,122,.2)}
+
+    .wa-btn{padding:7px 14px;font-size:.75rem;font-weight:600;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;font-family:var(--font);background:var(--surface);color:var(--text-muted)}
+    .wa-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--accent-border)}
+    .wa-btn--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .wa-btn--primary:hover{opacity:.9}
+    .wa-btn--danger{color:var(--red);border-color:var(--red-border)}
+    .wa-btn--danger:hover{background:var(--red-bg)}
+    .wa-btn--sm{padding:5px 10px;font-size:.7rem}
+    .wa-btn--green{color:var(--green);border-color:var(--green-border)}
+    .wa-btn--green:hover{background:var(--green-bg)}
+
+    .wa-form-row{display:flex;gap:12px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
+    .wa-form-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px}
+    .wa-form-group label{font-size:.72rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em}
+    .wa-form-group input,.wa-form-group select,.wa-form-group textarea{padding:8px 12px;font-size:.82rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font)}
+    .wa-form-group input:focus,.wa-form-group select:focus,.wa-form-group textarea:focus{border-color:var(--accent);outline:none}
+
+    .wa-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:none;align-items:center;justify-content:center}
+    .wa-modal-overlay.active{display:flex}
+    .wa-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto}
+    .wa-modal__title{font-size:1rem;font-weight:700;margin-bottom:16px}
+    .wa-modal__footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+    .wa-secret-box{padding:14px;background:var(--bg);border:1px solid var(--yellow-border);border-radius:var(--radius-sm);margin:12px 0}
+    .wa-secret-box__label{font-size:.72rem;color:var(--yellow);font-weight:600;margin-bottom:6px}
+    .wa-secret-box__value{font-family:var(--font-mono);font-size:.82rem;color:var(--text);word-break:break-all;user-select:all}
+
+    .wa-qr-container{text-align:center;padding:24px}
+    .wa-qr-container img{border-radius:var(--radius);background:#fff;padding:16px;max-width:260px}
+    .wa-qr-container canvas{border-radius:var(--radius);background:#fff;padding:16px}
+    .wa-qr-status{font-size:.8rem;color:var(--text-muted);margin-top:12px}
+
+    .wa-section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+    .wa-section-title{font-size:.95rem;font-weight:700;color:var(--text)}
+    .wa-section-desc{font-size:.75rem;color:var(--text-dim);margin-top:2px}
+
+    .wa-empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:.85rem}
+    .wa-empty__icon{font-size:2rem;margin-bottom:8px}
+
+    @keyframes panelIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="admin-header">
+    <div class="admin-header__left">
+      <a href="/admin/" class="admin-header__logo">
+        <span class="admin-header__wordmark">getouch</span>
+        <span class="admin-header__tag">admin</span>
+      </a>
+      <span class="admin-header__sep">/</span>
+      <span style="color:var(--text);font-weight:600;font-size:.85rem">💬 WhatsApp Gateway</span>
+    </div>
+    <div class="admin-header__right">
+      <span class="admin-header__ver">v{{VERSION}}</span>
+    </div>
+  </header>
+
+  <main class="admin-main" style="max-width:1100px;margin:0 auto;padding:24px 16px">
+
+    <!-- Status Banner -->
+    <div id="wa-status-banner" class="wa-status-banner wa-status-banner--offline">
+      <div id="wa-status-dot" class="wa-status-banner__dot wa-status-banner__dot--offline"></div>
+      <div>
+        <div id="wa-status-text" class="wa-status-banner__text">Checking WA service…</div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="wa-kpi-grid" id="wa-kpis">
+      <div class="wa-kpi"><div class="wa-kpi__value" id="kpi-tenants">—</div><div class="wa-kpi__label">Tenants</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value" id="kpi-sessions">—</div><div class="wa-kpi__label">Sessions</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value wa-kpi__value--green" id="kpi-sent">—</div><div class="wa-kpi__label">Sent 24h</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value wa-kpi__value--red" id="kpi-failed">—</div><div class="wa-kpi__label">Failed 24h</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value" id="kpi-inbound">—</div><div class="wa-kpi__label">Inbound 24h</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="wa-tabs" role="tablist">
+      <button class="wa-tab active" data-tab="sessions" role="tab">📱 Sessions</button>
+      <button class="wa-tab" data-tab="tenants" role="tab">🏢 Tenants</button>
+      <button class="wa-tab" data-tab="keys" role="tab">🔑 API Keys</button>
+      <button class="wa-tab" data-tab="messages" role="tab">📨 Messages</button>
+      <button class="wa-tab" data-tab="send" role="tab">📤 Test Send</button>
+      <button class="wa-tab" data-tab="audit" role="tab">📋 Audit</button>
+    </div>
+
+    <!-- ═══ Sessions Panel ═══ -->
+    <div class="wa-panel active" id="panel-sessions">
+      <div class="wa-section-header">
+        <div>
+          <div class="wa-section-title">WhatsApp Sessions</div>
+          <div class="wa-section-desc">Manage Baileys connections per tenant</div>
+        </div>
+      </div>
+      <div id="sessions-content">
+        <div class="wa-empty"><div class="wa-empty__icon">📡</div>Loading sessions…</div>
+      </div>
+    </div>
+
+    <!-- ═══ Tenants Panel ═══ -->
+    <div class="wa-panel" id="panel-tenants">
+      <div class="wa-section-header">
+        <div>
+          <div class="wa-section-title">Tenants</div>
+          <div class="wa-section-desc">Manage WhatsApp-enabled companies</div>
+        </div>
+        <button class="wa-btn wa-btn--primary" onclick="showCreateTenant()">+ Add Tenant</button>
+      </div>
+      <div id="tenants-table-wrap">
+        <div class="wa-empty"><div class="wa-empty__icon">🏢</div>Loading tenants…</div>
+      </div>
+    </div>
+
+    <!-- ═══ API Keys Panel ═══ -->
+    <div class="wa-panel" id="panel-keys">
+      <div class="wa-section-header">
+        <div>
+          <div class="wa-section-title">API Keys</div>
+          <div class="wa-section-desc">Per-tenant API keys for WA endpoints</div>
+        </div>
+      </div>
+      <div class="wa-form-row" style="margin-bottom:16px">
+        <div class="wa-form-group" style="max-width:260px">
+          <label>Tenant</label>
+          <select id="key-tenant-select" onchange="loadKeys()">
+            <option value="">Select tenant…</option>
+          </select>
+        </div>
+        <button class="wa-btn wa-btn--primary" onclick="showCreateKey()">+ Create Key</button>
+      </div>
+      <div id="keys-table-wrap">
+        <div class="wa-empty"><div class="wa-empty__icon">🔑</div>Select a tenant to view keys</div>
+      </div>
+    </div>
+
+    <!-- ═══ Messages Panel ═══ -->
+    <div class="wa-panel" id="panel-messages">
+      <div class="wa-section-header">
+        <div>
+          <div class="wa-section-title">Message Log</div>
+          <div class="wa-section-desc">Outbound &amp; inbound messages per tenant</div>
+        </div>
+      </div>
+      <div class="wa-form-row" style="margin-bottom:16px">
+        <div class="wa-form-group" style="max-width:260px">
+          <label>Tenant</label>
+          <select id="msg-tenant-select" onchange="loadMessages()">
+            <option value="">Select tenant…</option>
+          </select>
+        </div>
+        <div class="wa-form-group" style="max-width:160px">
+          <label>Direction</label>
+          <select id="msg-direction" onchange="loadMessages()">
+            <option value="">All</option>
+            <option value="outbound">Outbound</option>
+            <option value="inbound">Inbound</option>
+          </select>
+        </div>
+      </div>
+      <div id="messages-table-wrap">
+        <div class="wa-empty"><div class="wa-empty__icon">📨</div>Select a tenant to view messages</div>
+      </div>
+    </div>
+
+    <!-- ═══ Test Send Panel ═══ -->
+    <div class="wa-panel" id="panel-send">
+      <div class="wa-section-header">
+        <div>
+          <div class="wa-section-title">Test Send</div>
+          <div class="wa-section-desc">Send a test WhatsApp message via a tenant session</div>
+        </div>
+      </div>
+      <div style="max-width:500px">
+        <div class="wa-form-row">
+          <div class="wa-form-group">
+            <label>Tenant</label>
+            <select id="send-tenant-select"></select>
+          </div>
+        </div>
+        <div class="wa-form-row">
+          <div class="wa-form-group">
+            <label>To (E.164)</label>
+            <input type="text" id="send-to" placeholder="+628123456789">
+          </div>
+        </div>
+        <div class="wa-form-row">
+          <div class="wa-form-group">
+            <label>Message</label>
+            <textarea id="send-text" rows="3" placeholder="Hello from Getouch WA Gateway!"></textarea>
+          </div>
+        </div>
+        <div class="wa-form-row">
+          <button class="wa-btn wa-btn--primary" onclick="testSend()">📤 Send Test Message</button>
+        </div>
+        <div id="send-result" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- ═══ Audit Panel ═══ -->
+    <div class="wa-panel" id="panel-audit">
+      <div class="wa-section-header">
+        <div>
+          <div class="wa-section-title">Audit Log</div>
+          <div class="wa-section-desc">Admin actions and system events</div>
+        </div>
+      </div>
+      <div id="audit-table-wrap">
+        <div class="wa-empty"><div class="wa-empty__icon">📋</div>Loading audit logs…</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ═══ Create Tenant Modal ═══ -->
+  <div class="wa-modal-overlay" id="modal-create-tenant">
+    <div class="wa-modal">
+      <div class="wa-modal__title">Create Tenant</div>
+      <div class="wa-form-row"><div class="wa-form-group"><label>Slug</label><input type="text" id="ct-slug" placeholder="my-company"></div></div>
+      <div class="wa-form-row"><div class="wa-form-group"><label>Name</label><input type="text" id="ct-name" placeholder="My Company"></div></div>
+      <div class="wa-form-row">
+        <div class="wa-form-group"><label>Plan</label><select id="ct-plan"><option value="free">Free</option><option value="starter">Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option></select></div>
+        <div class="wa-form-group"><label>Daily Limit</label><input type="number" id="ct-daily" value="100"></div>
+        <div class="wa-form-group"><label>Monthly Limit</label><input type="number" id="ct-monthly" value="1000"></div>
+      </div>
+      <div class="wa-modal__footer">
+        <button class="wa-btn" onclick="closeModal('modal-create-tenant')">Cancel</button>
+        <button class="wa-btn wa-btn--primary" onclick="createTenant()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Key Created Modal ═══ -->
+  <div class="wa-modal-overlay" id="modal-key-created">
+    <div class="wa-modal">
+      <div class="wa-modal__title">🔑 API Key Created</div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:8px">Copy this key now — it won't be shown again.</p>
+      <div class="wa-secret-box">
+        <div class="wa-secret-box__label">API KEY</div>
+        <div class="wa-secret-box__value" id="new-key-value">—</div>
+      </div>
+      <div class="wa-modal__footer">
+        <button class="wa-btn" onclick="copyKey()">📋 Copy</button>
+        <button class="wa-btn wa-btn--primary" onclick="closeModal('modal-key-created')">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ QR Modal ═══ -->
+  <div class="wa-modal-overlay" id="modal-qr">
+    <div class="wa-modal" style="text-align:center">
+      <div class="wa-modal__title">📱 Scan QR Code</div>
+      <div class="wa-qr-container" id="qr-container">
+        <div class="wa-qr-status">Loading QR…</div>
+      </div>
+      <p class="wa-qr-status" id="qr-status-text">Open WhatsApp on your phone → Linked Devices → Link a Device</p>
+      <div class="wa-modal__footer" style="justify-content:center">
+        <button class="wa-btn" onclick="closeModal('modal-qr');stopQrPoll()">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API = '/v1/admin/wa';
+let tenantsList = [];
+let qrPollTimer = null;
+
+/* ── Tabs ──────────────────────────────────────────────── */
+document.querySelectorAll('.wa-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.wa-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.wa-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    // Auto-load
+    if (tab.dataset.tab === 'sessions') loadSessions();
+    if (tab.dataset.tab === 'tenants') loadTenants();
+    if (tab.dataset.tab === 'audit') loadAudit();
+  });
+});
+
+/* ── API helpers ──────────────────────────────────────── */
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  });
+  return res.json();
+}
+
+function badge(status) {
+  return `<span class="wa-badge wa-badge--${status}">${status}</span>`;
+}
+
+function ago(ts) {
+  if (!ts) return '—';
+  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+/* ── Health + KPIs ────────────────────────────────────── */
+async function loadHealth() {
+  try {
+    const d = await api('/health');
+    const waOk = d.wa_service?.status === 'ok';
+    const connected = parseInt(d.sessions?.connected || 0);
+    const totalTenants = parseInt(d.tenants?.active || 0);
+
+    let statusClass, dotClass, statusText;
+    if (waOk && connected > 0) {
+      statusClass = 'online'; dotClass = 'online';
+      statusText = `WA Service Online · ${connected} session${connected > 1 ? 's' : ''} connected`;
+    } else if (waOk) {
+      statusClass = 'degraded'; dotClass = 'degraded';
+      statusText = 'WA Service Online · No sessions connected';
+    } else {
+      statusClass = 'offline'; dotClass = 'offline';
+      statusText = 'WA Service Offline';
+    }
+
+    const banner = document.getElementById('wa-status-banner');
+    banner.className = `wa-status-banner wa-status-banner--${statusClass}`;
+    document.getElementById('wa-status-dot').className = `wa-status-banner__dot wa-status-banner__dot--${dotClass}`;
+    document.getElementById('wa-status-text').textContent = statusText;
+
+    document.getElementById('kpi-tenants').textContent = totalTenants;
+    document.getElementById('kpi-sessions').textContent = connected;
+    document.getElementById('kpi-sent').textContent = d.messages_24h?.sent_24h || 0;
+    document.getElementById('kpi-failed').textContent = d.messages_24h?.failed_24h || 0;
+    document.getElementById('kpi-inbound').textContent = d.messages_24h?.inbound_24h || 0;
+  } catch {
+    document.getElementById('wa-status-text').textContent = 'Failed to load health data';
+  }
+}
+
+/* ── Sessions ──────────────────────────────────────────── */
+async function loadSessions() {
+  try {
+    const d = await api('/sessions');
+    const wrap = document.getElementById('sessions-content');
+    if (!d.sessions?.length) {
+      wrap.innerHTML = `<div class="wa-empty"><div class="wa-empty__icon">📡</div>No sessions yet. Create a tenant first, then start a session.</div>`;
+      return;
+    }
+    let html = `<table class="wa-table"><thead><tr><th>Tenant</th><th>Status</th><th>Phone</th><th>Platform</th><th>Last Seen</th><th>Actions</th></tr></thead><tbody>`;
+    for (const s of d.sessions) {
+      html += `<tr>
+        <td><strong>${esc(s.tenant_name)}</strong><br><span class="wa-table__mono">${esc(s.tenant_slug)}</span></td>
+        <td>${badge(s.status)}</td>
+        <td>${esc(s.phone_number) || '—'}</td>
+        <td>${esc(s.platform) || '—'}</td>
+        <td>${ago(s.last_seen_at)}</td>
+        <td>
+          <button class="wa-btn wa-btn--sm wa-btn--green" onclick="startSession(${s.tenant_id})">▶ Start</button>
+          <button class="wa-btn wa-btn--sm" onclick="showQr(${s.tenant_id})">📱 QR</button>
+          <button class="wa-btn wa-btn--sm wa-btn--danger" onclick="logoutSession(${s.tenant_id})">⏹ Logout</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch {
+    document.getElementById('sessions-content').innerHTML = '<div class="wa-empty">Failed to load sessions</div>';
+  }
+}
+
+async function startSession(tenantId) {
+  try {
+    await api(`/sessions/${tenantId}/start`, { method: 'POST' });
+    loadSessions();
+    loadHealth();
+  } catch { alert('Failed to start session'); }
+}
+
+async function logoutSession(tenantId) {
+  if (!confirm('Disconnect this WhatsApp session?')) return;
+  try {
+    await api(`/sessions/${tenantId}/logout`, { method: 'POST' });
+    loadSessions();
+    loadHealth();
+  } catch { alert('Failed to logout'); }
+}
+
+async function showQr(tenantId) {
+  document.getElementById('modal-qr').classList.add('active');
+  document.getElementById('qr-container').innerHTML = '<div class="wa-qr-status">Loading QR code…</div>';
+  pollQr(tenantId);
+}
+
+async function pollQr(tenantId) {
+  try {
+    const d = await api(`/sessions/${tenantId}/qr`);
+    const container = document.getElementById('qr-container');
+    const statusEl = document.getElementById('qr-status-text');
+
+    if (d.status === 'connected') {
+      container.innerHTML = '<div style="font-size:3rem;margin:20px 0">✅</div>';
+      statusEl.textContent = 'Connected! You can close this dialog.';
+      stopQrPoll();
+      loadSessions();
+      loadHealth();
+      return;
+    }
+
+    if (d.qr) {
+      container.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(d.qr)}" alt="QR Code" />`;
+      statusEl.textContent = 'Open WhatsApp → Linked Devices → Link a Device → Scan this QR';
+    } else {
+      container.innerHTML = '<div class="wa-qr-status">No QR available. Try starting the session first.</div>';
+      statusEl.textContent = d.message || 'Waiting for QR…';
+    }
+  } catch {
+    document.getElementById('qr-container').innerHTML = '<div class="wa-qr-status">Failed to load QR</div>';
+  }
+
+  // Poll every 5s
+  qrPollTimer = setTimeout(() => pollQr(tenantId), 5000);
+}
+
+function stopQrPoll() {
+  if (qrPollTimer) { clearTimeout(qrPollTimer); qrPollTimer = null; }
+}
+
+/* ── Tenants ───────────────────────────────────────────── */
+async function loadTenants() {
+  try {
+    const d = await api('/tenants');
+    tenantsList = d.tenants || [];
+    populateTenantSelects();
+    const wrap = document.getElementById('tenants-table-wrap');
+    if (!tenantsList.length) {
+      wrap.innerHTML = '<div class="wa-empty"><div class="wa-empty__icon">🏢</div>No tenants yet</div>';
+      return;
+    }
+    let html = `<table class="wa-table"><thead><tr><th>Slug</th><th>Name</th><th>Plan</th><th>Status</th><th>Session</th><th>Keys</th><th>Limits</th><th>Actions</th></tr></thead><tbody>`;
+    for (const t of tenantsList) {
+      html += `<tr>
+        <td class="wa-table__mono">${esc(t.slug)}</td>
+        <td>${esc(t.name)}</td>
+        <td>${badge(t.plan)}</td>
+        <td>${badge(t.status)}</td>
+        <td>${t.session_status ? badge(t.session_status) : '<span style="color:var(--text-dim)">—</span>'}</td>
+        <td>${t.active_keys || 0}</td>
+        <td style="font-size:.72rem">${t.daily_limit}/day · ${t.monthly_limit}/mo</td>
+        <td>
+          ${t.status === 'active'
+            ? `<button class="wa-btn wa-btn--sm wa-btn--danger" onclick="suspendTenant(${t.id})">Suspend</button>`
+            : `<button class="wa-btn wa-btn--sm wa-btn--green" onclick="activateTenant(${t.id})">Activate</button>`}
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch {
+    document.getElementById('tenants-table-wrap').innerHTML = '<div class="wa-empty">Failed to load tenants</div>';
+  }
+}
+
+function populateTenantSelects() {
+  const selects = ['key-tenant-select', 'msg-tenant-select', 'send-tenant-select'];
+  for (const id of selects) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const val = el.value;
+    el.innerHTML = '<option value="">Select tenant…</option>';
+    for (const t of tenantsList) {
+      el.innerHTML += `<option value="${t.id}">${esc(t.name)} (${esc(t.slug)})</option>`;
+    }
+    if (val) el.value = val;
+  }
+}
+
+function showCreateTenant() {
+  document.getElementById('ct-slug').value = '';
+  document.getElementById('ct-name').value = '';
+  document.getElementById('ct-plan').value = 'free';
+  document.getElementById('ct-daily').value = '100';
+  document.getElementById('ct-monthly').value = '1000';
+  document.getElementById('modal-create-tenant').classList.add('active');
+}
+
+async function createTenant() {
+  const body = {
+    slug: document.getElementById('ct-slug').value.trim(),
+    name: document.getElementById('ct-name').value.trim(),
+    plan: document.getElementById('ct-plan').value,
+    daily_limit: parseInt(document.getElementById('ct-daily').value) || 100,
+    monthly_limit: parseInt(document.getElementById('ct-monthly').value) || 1000,
+  };
+  if (!body.slug || !body.name) return alert('Slug and name are required');
+  try {
+    await api('/tenants', { method: 'POST', body: JSON.stringify(body) });
+    closeModal('modal-create-tenant');
+    loadTenants();
+    loadHealth();
+  } catch { alert('Failed to create tenant'); }
+}
+
+async function suspendTenant(id) {
+  if (!confirm('Suspend this tenant?')) return;
+  await api(`/tenants/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'suspended' }) });
+  loadTenants();
+}
+
+async function activateTenant(id) {
+  await api(`/tenants/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'active' }) });
+  loadTenants();
+}
+
+/* ── API Keys ──────────────────────────────────────────── */
+async function loadKeys() {
+  const tenantId = document.getElementById('key-tenant-select').value;
+  const wrap = document.getElementById('keys-table-wrap');
+  if (!tenantId) { wrap.innerHTML = '<div class="wa-empty"><div class="wa-empty__icon">🔑</div>Select a tenant</div>'; return; }
+  try {
+    const d = await api(`/keys?tenant_id=${tenantId}`);
+    if (!d.keys?.length) { wrap.innerHTML = '<div class="wa-empty">No keys for this tenant</div>'; return; }
+    let html = `<table class="wa-table"><thead><tr><th>Prefix</th><th>Label</th><th>Scopes</th><th>Rate Limit</th><th>Status</th><th>Last Used</th><th>Actions</th></tr></thead><tbody>`;
+    for (const k of d.keys) {
+      html += `<tr>
+        <td class="wa-table__mono">${esc(k.key_prefix)}…</td>
+        <td>${esc(k.label)}</td>
+        <td style="font-size:.72rem">${(k.scopes || []).join(', ')}</td>
+        <td>${k.rate_limit}/min</td>
+        <td>${k.is_active ? badge('active') : badge('suspended')}</td>
+        <td>${ago(k.last_used_at)}</td>
+        <td>
+          <button class="wa-btn wa-btn--sm" onclick="rotateKey(${k.id})">🔄 Rotate</button>
+          ${k.is_active ? `<button class="wa-btn wa-btn--sm wa-btn--danger" onclick="revokeKey(${k.id})">Revoke</button>` : ''}
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch { wrap.innerHTML = '<div class="wa-empty">Failed to load keys</div>'; }
+}
+
+async function showCreateKey() {
+  const tenantId = document.getElementById('key-tenant-select').value;
+  if (!tenantId) return alert('Select a tenant first');
+  const label = prompt('Key label (e.g. "production", "staging"):');
+  if (!label) return;
+  try {
+    const d = await api('/keys', { method: 'POST', body: JSON.stringify({ tenant_id: parseInt(tenantId), label }) });
+    document.getElementById('new-key-value').textContent = d.raw_key;
+    document.getElementById('modal-key-created').classList.add('active');
+    loadKeys();
+  } catch { alert('Failed to create key'); }
+}
+
+async function revokeKey(id) {
+  if (!confirm('Revoke this API key?')) return;
+  await api(`/keys/${id}`, { method: 'DELETE' });
+  loadKeys();
+}
+
+async function rotateKey(id) {
+  if (!confirm('Rotate this API key? The old key will be invalidated.')) return;
+  try {
+    const d = await api(`/keys/${id}/rotate`, { method: 'POST' });
+    document.getElementById('new-key-value').textContent = d.raw_key;
+    document.getElementById('modal-key-created').classList.add('active');
+    loadKeys();
+  } catch { alert('Failed to rotate key'); }
+}
+
+function copyKey() {
+  const val = document.getElementById('new-key-value').textContent;
+  navigator.clipboard.writeText(val).then(() => alert('Copied!')).catch(() => {});
+}
+
+/* ── Messages ──────────────────────────────────────────── */
+async function loadMessages() {
+  const tenantId = document.getElementById('msg-tenant-select').value;
+  const direction = document.getElementById('msg-direction').value;
+  const wrap = document.getElementById('messages-table-wrap');
+  if (!tenantId) { wrap.innerHTML = '<div class="wa-empty"><div class="wa-empty__icon">📨</div>Select a tenant</div>'; return; }
+  try {
+    const params = new URLSearchParams({ tenant_id: tenantId });
+    if (direction) params.set('direction', direction);
+    const d = await api(`/messages?${params}`);
+    if (!d.messages?.length) { wrap.innerHTML = '<div class="wa-empty">No messages found</div>'; return; }
+
+    // Stats
+    const s = d.stats || {};
+    let html = `<div class="wa-kpi-grid" style="margin-bottom:16px">
+      <div class="wa-kpi"><div class="wa-kpi__value">${s.total_outbound || 0}</div><div class="wa-kpi__label">Outbound</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value">${s.total_inbound || 0}</div><div class="wa-kpi__label">Inbound</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value wa-kpi__value--green">${s.delivered || 0}</div><div class="wa-kpi__label">Delivered</div></div>
+      <div class="wa-kpi"><div class="wa-kpi__value wa-kpi__value--red">${s.failed || 0}</div><div class="wa-kpi__label">Failed</div></div>
+    </div>`;
+
+    html += `<table class="wa-table"><thead><tr><th>Dir</th><th>To/From</th><th>Body</th><th>Status</th><th>Time</th></tr></thead><tbody>`;
+    for (const m of d.messages) {
+      const dir = m.direction === 'outbound' ? '📤' : '📥';
+      const body = (m.body || '').substring(0, 60) + ((m.body||'').length > 60 ? '…': '');
+      html += `<tr>
+        <td>${dir}</td>
+        <td class="wa-table__mono">${esc(m.to_e164 || m.wa_jid)}</td>
+        <td>${esc(body)}</td>
+        <td>${badge(m.status)}</td>
+        <td>${ago(m.created_at)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch { wrap.innerHTML = '<div class="wa-empty">Failed to load messages</div>'; }
+}
+
+/* ── Test Send ─────────────────────────────────────────── */
+async function testSend() {
+  const tenantId = document.getElementById('send-tenant-select').value;
+  const to = document.getElementById('send-to').value.trim();
+  const text = document.getElementById('send-text').value.trim();
+  const result = document.getElementById('send-result');
+  if (!tenantId || !to || !text) { result.innerHTML = '<span style="color:var(--red)">All fields required</span>'; return; }
+  result.innerHTML = '<span style="color:var(--text-muted)">Sending…</span>';
+  try {
+    const d = await api('/test-send', { method: 'POST', body: JSON.stringify({ tenant_id: parseInt(tenantId), to, text }) });
+    if (d.ok) {
+      result.innerHTML = `<span style="color:var(--green)">✅ Sent! Message ID: ${d.message_id}</span>`;
+    } else {
+      result.innerHTML = `<span style="color:var(--red)">❌ ${esc(d.error || 'Send failed')}</span>`;
+    }
+  } catch (err) {
+    result.innerHTML = `<span style="color:var(--red)">❌ ${esc(err.message)}</span>`;
+  }
+}
+
+/* ── Audit ─────────────────────────────────────────────── */
+async function loadAudit() {
+  try {
+    const d = await api('/audit');
+    const wrap = document.getElementById('audit-table-wrap');
+    if (!d.logs?.length) { wrap.innerHTML = '<div class="wa-empty">No audit logs yet</div>'; return; }
+    let html = `<table class="wa-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Detail</th></tr></thead><tbody>`;
+    for (const l of d.logs) {
+      html += `<tr>
+        <td>${ago(l.created_at)}</td>
+        <td class="wa-table__mono">${esc(l.actor)}</td>
+        <td>${esc(l.action)}</td>
+        <td class="wa-table__mono" style="font-size:.68rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(JSON.stringify(l.detail))}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch { document.getElementById('audit-table-wrap').innerHTML = '<div class="wa-empty">Failed to load audit logs</div>'; }
+}
+
+/* ── Init ──────────────────────────────────────────────── */
+(async function init() {
+  await loadHealth();
+  await loadTenants();
+  await loadSessions();
+  // Refresh health every 30s
+  setInterval(loadHealth, 30000);
+})();
+</script>
+
+</body>
+</html>

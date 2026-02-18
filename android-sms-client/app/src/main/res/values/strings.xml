@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Getouch SMS</string>
+    <string name="channel_name">SMS Gateway Service</string>
+    <string name="channel_desc">Keeps the SMS gateway running in background</string>
+    <string name="notification_title">SMS Gateway Active</string>
+    <string name="notification_text">Relaying SMS messages</string>
+    <string name="pair_title">Pair Device</string>
+    <string name="pair_scan_qr">Scan QR Code</string>
+    <string name="pair_manual">Enter Token Manually</string>
+    <string name="pair_server_url">Server URL</string>
+    <string name="pair_token_hint">Paste device token here</string>
+    <string name="pair_connect">Connect</string>
+    <string name="unpair">Unpair Device</string>
+    <string name="status_online">Online</string>
+    <string name="status_offline">Offline</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="battery_opt_title">Battery Optimization</string>
+    <string name="battery_opt_desc">For reliable SMS relay, please disable battery optimization for this app.\n\n1. Open Settings → Battery → Battery Optimization\n2. Find \"Getouch SMS\"\n3. Select \"Don\'t optimize\"</string>
+    <string name="battery_opt_open">Open Settings</string>
+    <string name="battery_opt_skip">Skip for Now</string>
+</resources>

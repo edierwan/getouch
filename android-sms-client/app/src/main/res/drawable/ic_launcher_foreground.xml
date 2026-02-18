@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- SMS icon envelope shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,36h52c2.2,0 4,1.8 4,4v28c0,2.2 -1.8,4 -4,4H28c-2.2,0 -4,-1.8 -4,-4V40C24,37.8 25.8,36 28,36z" />
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M24,40l30,20 30,-20"
+        android:strokeColor="#6366F1"
+        android:strokeWidth="2" />
+    <!-- Signal bars -->
+    <path
+        android:fillColor="#22C55E"
+        android:pathData="M70,30h4v6h-4z" />
+    <path
+        android:fillColor="#22C55E"
+        android:pathData="M76,26h4v10h-4z" />
+    <path
+        android:fillColor="#22C55E"
+        android:pathData="M82,22h4v14h-4z" />
+</vector>

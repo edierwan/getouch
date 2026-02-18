@@ -1,0 +1,49 @@
+<resources>
+    <style name="Theme.GeotouchSms" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#6366F1</item>
+        <item name="colorPrimaryVariant">#4F46E5</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#22C55E</item>
+        <item name="colorSecondaryVariant">#16A34A</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#09090B</item>
+    </style>
+
+    <style name="Theme.GeotouchSms.Dark" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#818CF8</item>
+        <item name="colorPrimaryVariant">#6366F1</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#4ADE80</item>
+        <item name="colorOnSecondary">#000000</item>
+        <item name="android:statusBarColor">#09090B</item>
+        <item name="android:windowBackground">#09090B</item>
+    </style>
+
+    <style name="CardStyle" parent="">
+        <item name="cardBackgroundColor">#18181B</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">#27272A</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="PrimaryButton" parent="Widget.Material3.Button">
+        <item name="backgroundTint">#6366F1</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <style name="SecondaryButton" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">8dp</item>
+        <item name="android:textColor">#A1A1AA</item>
+        <item name="strokeColor">#3F3F46</item>
+    </style>
+
+    <style name="DangerButton" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">#7F1D1D</item>
+        <item name="cornerRadius">8dp</item>
+        <item name="android:textColor">#FCA5A5</item>
+    </style>
+</resources>
