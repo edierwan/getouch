@@ -276,6 +276,14 @@
               </div>
               <span class="badge badge--checking" data-service="wa"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
             </a>
+            <a href="/admin/services/sms" class="admin-svc-card">
+              <div class="admin-svc-card__icon">📱</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">SMS Gateway</h3>
+                <p class="admin-svc-card__desc">Android SMS Gateway · multi-tenant</p>
+              </div>
+              <span class="badge badge--checking" data-service="sms"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </a>
           </div>
         </div>
 
@@ -785,9 +793,40 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         .catch(function() {});
     }
 
+    // SMS health (separate endpoint)
+    function checkSmsHealth() {
+      fetch('/v1/sms/health')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var badges = document.querySelectorAll('[data-service="sms"]');
+          var s = d.status;
+          badges.forEach(function(el){
+            if(s === 'online'){
+              el.className = 'badge badge--ok';
+              el.innerHTML = '<span class="badge__dot"></span>Online';
+            } else if(s === 'degraded'){
+              el.className = 'badge badge--warn';
+              el.innerHTML = '<span class="badge__dot"></span>Degraded';
+            } else {
+              el.className = 'badge badge--offline';
+              el.innerHTML = '<span class="badge__dot"></span>Offline';
+            }
+          });
+        })
+        .catch(function(){
+          var badges = document.querySelectorAll('[data-service="sms"]');
+          badges.forEach(function(el){
+            el.className = 'badge badge--offline';
+            el.innerHTML = '<span class="badge__dot"></span>Offline';
+          });
+        });
+    }
+
     // Run immediately and every 30 seconds
     checkHealth();
+    checkSmsHealth();
     setInterval(checkHealth, 30000);
+    setInterval(checkSmsHealth, 30000);
 
     /* ── AI Settings management ─────────────────────────── */
     var modelSelect  = document.getElementById('setting-default-model');

@@ -18,6 +18,9 @@ const waGatewayRoutes   = require('./routes/wa-gateway');
 const chatStreamRoutes  = require('./routes/chat-stream');
 const imageRoutes       = require('./routes/image');
 const settingsRoutes    = require('./routes/settings');
+const smsGatewayRoutes  = require('./routes/sms-gateway');
+const smsAdminRoutes    = require('./routes/sms-admin');
+const smsWorker         = require('./lib/sms-worker');
 
 /* ── Config ─────────────────────────────────────────────── */
 const PORT    = 3000;
@@ -60,6 +63,7 @@ function reloadPages() {
   pages.landing    = loadPage('landing.html');
   pages.admin      = loadPage('admin.html');
   pages.ops        = loadPage('ops.html');
+  pages.smsAdmin   = loadPage('sms-admin.html');
   pages.tryBot     = loadPage('try-bot.html');
   pages.tryWhatsapp = loadPage('try-whatsapp.html');
 }
@@ -118,6 +122,8 @@ app.use('/v1', waGatewayRoutes);
 app.use('/v1', chatStreamRoutes);
 app.use('/v1', imageRoutes);
 app.use('/v1/admin', settingsRoutes);
+app.use('/v1/sms', smsGatewayRoutes);
+app.use('/v1/admin/sms', smsAdminRoutes);
 
 /* ── Authenticated API endpoints ─────────────────────────── */
 app.get('/api/me', requireAuth, async (req, res) => {
@@ -223,6 +229,15 @@ app.get('/admin/ops', (req, res) => {
     req.session.cfEmail = cfEmail;
   }
   res.type('html').send(pages.ops);
+});
+
+app.get('/admin/services/sms', (req, res) => {
+  if (isDev) reloadPages();
+  const cfEmail = req.headers['cf-access-authenticated-user-email'];
+  if (cfEmail && req.session) {
+    req.session.cfEmail = cfEmail;
+  }
+  res.type('html').send(pages.smsAdmin);
 });
 
 /* ── Dashboard (authenticated) ───────────────────────────── */
@@ -404,6 +419,15 @@ async function runMigrations() {
     console.error('[db] Migration 002 error (may already exist):', err.message);
   }
 
+  // Migration 003 — SMS Gateway schema
+  try {
+    const { initSmsSchema } = require('./lib/sms-db');
+    await initSmsSchema();
+    console.log('[db] Migration 003 (SMS gateway) applied');
+  } catch (err) {
+    console.error('[db] Migration 003 error (may already exist):', err.message);
+  }
+
   // If dev pool exists, also apply schema migrations there
   const { poolDev } = require('./lib/db');
   if (poolDev) {
@@ -427,6 +451,13 @@ async function runMigrations() {
 initSchema()
   .then(() => runMigrations())
   .then(() => {
+    // Start SMS worker
+    smsWorker.startWorker().then(() => {
+      console.log('[sms] Worker started');
+    }).catch(err => {
+      console.error('[sms] Worker start error:', err.message);
+    });
+
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`[app] v${VERSION} → http://localhost:${PORT}`);
       console.log(`[app] env=${isDev ? 'development' : 'production'}`);
@@ -447,6 +478,7 @@ initSchema()
       if (shuttingDown) return;
       shuttingDown = true;
       console.log(`[app] ${signal} — closing`);
+      smsWorker.stopWorker().catch(() => {});
       server.close(() => {
         endAll().then(() => process.exit(0));
       });

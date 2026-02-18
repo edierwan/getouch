@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMS Gateway — Getouch Admin</title>
+  <link rel="stylesheet" href="/css/styles.css?v={{VERSION}}">
+  <style>
+    /* ── SMS Admin specific styles ─────────────────────── */
+    .sms-tabs{display:flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:24px;overflow-x:auto}
+    .sms-tab{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;font-size:.8rem;font-weight:600;color:var(--text-muted);background:0;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;font-family:var(--font);white-space:nowrap}
+    .sms-tab:hover{color:var(--text);background:var(--bg)}
+    .sms-tab.active{color:var(--accent);background:var(--accent-glow)}
+    .sms-panel{display:none;animation:panelIn .2s ease}
+    .sms-panel.active{display:block}
+
+    .sms-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:24px}
+    .sms-kpi{padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center}
+    .sms-kpi__value{font-size:1.5rem;font-weight:800;color:var(--text);letter-spacing:-.02em}
+    .sms-kpi__value--green{color:var(--green)}
+    .sms-kpi__value--red{color:var(--red)}
+    .sms-kpi__value--yellow{color:var(--yellow)}
+    .sms-kpi__label{font-size:.68rem;color:var(--text-dim);margin-top:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+
+    .sms-status-banner{padding:14px 18px;border-radius:var(--radius-sm);margin-bottom:20px;display:flex;align-items:center;gap:12px}
+    .sms-status-banner--online{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2)}
+    .sms-status-banner--degraded{background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2)}
+    .sms-status-banner--offline{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)}
+    .sms-status-banner__dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .sms-status-banner__dot--online{background:var(--green)}
+    .sms-status-banner__dot--degraded{background:var(--yellow);animation:pulse 2s ease-in-out infinite}
+    .sms-status-banner__dot--offline{background:var(--red)}
+    .sms-status-banner__text{font-size:.85rem;font-weight:600;color:var(--text)}
+    .sms-status-banner__hint{font-size:.75rem;color:var(--text-muted);margin-top:2px}
+
+    .sms-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .sms-table th{text-align:left;padding:10px 12px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-weight:600;border-bottom:1px solid var(--border);background:var(--surface)}
+    .sms-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text-muted);vertical-align:middle}
+    .sms-table tr:hover td{background:var(--surface-hover)}
+    .sms-table__mono{font-family:var(--font-mono);font-size:.72rem}
+
+    .sms-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:.65rem;font-weight:600;border-radius:var(--radius-full);white-space:nowrap}
+    .sms-badge--online{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .sms-badge--offline{color:var(--red);background:var(--red-bg);border:1px solid var(--red-border)}
+    .sms-badge--degraded{color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-border)}
+    .sms-badge--queued{color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-border)}
+    .sms-badge--sent{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .sms-badge--delivered{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .sms-badge--failed{color:var(--red);background:var(--red-bg);border:1px solid var(--red-border)}
+    .sms-badge--processing{color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-border)}
+    .sms-badge--active{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border)}
+    .sms-badge--suspended{color:var(--red);background:var(--red-bg);border:1px solid var(--red-border)}
+    .sms-badge--disabled{color:var(--text-dim);background:rgba(113,113,122,.1);border:1px solid rgba(113,113,122,.2)}
+
+    .sms-btn{padding:7px 14px;font-size:.75rem;font-weight:600;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;font-family:var(--font);background:var(--surface);color:var(--text-muted)}
+    .sms-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--accent-border)}
+    .sms-btn--primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .sms-btn--primary:hover{opacity:.9}
+    .sms-btn--danger{color:var(--red);border-color:var(--red-border)}
+    .sms-btn--danger:hover{background:var(--red-bg)}
+    .sms-btn--sm{padding:5px 10px;font-size:.7rem}
+
+    .sms-form-row{display:flex;gap:12px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
+    .sms-form-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px}
+    .sms-form-group label{font-size:.72rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em}
+    .sms-form-group input,.sms-form-group select{padding:8px 12px;font-size:.82rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font)}
+    .sms-form-group input:focus,.sms-form-group select:focus{border-color:var(--accent);outline:none}
+    .sms-form-group input[type=checkbox]{width:auto;margin-right:6px}
+
+    .sms-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:none;align-items:center;justify-content:center}
+    .sms-modal-overlay.active{display:flex}
+    .sms-modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto}
+    .sms-modal__title{font-size:1rem;font-weight:700;margin-bottom:16px}
+    .sms-modal__footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+    .sms-secret-box{padding:14px;background:var(--bg);border:1px solid var(--yellow-border);border-radius:var(--radius-sm);margin:12px 0}
+    .sms-secret-box__label{font-size:.72rem;color:var(--yellow);font-weight:600;margin-bottom:6px}
+    .sms-secret-box__value{font-family:var(--font-mono);font-size:.82rem;color:var(--text);word-break:break-all;user-select:all}
+
+    .sms-timeline{padding-left:20px;border-left:2px solid var(--border)}
+    .sms-timeline__item{position:relative;padding:8px 0 8px 16px;font-size:.78rem}
+    .sms-timeline__item::before{content:'';position:absolute;left:-25px;top:12px;width:8px;height:8px;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
+    .sms-timeline__time{font-size:.68rem;color:var(--text-dim);font-family:var(--font-mono)}
+    .sms-timeline__status{font-weight:600;color:var(--text)}
+    .sms-timeline__detail{font-size:.72rem;color:var(--text-muted);margin-top:2px}
+
+    .sms-empty{text-align:center;padding:32px;color:var(--text-dim);font-size:.85rem}
+    .sms-loading{text-align:center;padding:24px;color:var(--text-dim)}
+
+    @media(max-width:768px){
+      .sms-kpi-grid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+      .sms-form-row{flex-direction:column}
+      .sms-table{font-size:.72rem}
+      .sms-table th,.sms-table td{padding:8px}
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <nav class="admin-nav">
+      <div class="admin-nav__logo">ge<span>touch</span> admin</div>
+      <a href="/admin/" class="admin-nav__link">Dashboard</a>
+      <a href="/admin/services/sms" class="admin-nav__link active">SMS Gateway</a>
+      <a href="/admin/ops" class="admin-nav__link">Ops Dashboard</a>
+      <a href="/" class="admin-nav__link">← Home</a>
+    </nav>
+
+    <div class="admin-content admin-content--wide">
+      <h1 class="admin-content__title">📱 SMS Gateway</h1>
+      <p class="admin-content__subtitle">Multi-tenant SMS via Android SMS Gateway · v{{VERSION}}</p>
+
+      <!-- Status Banner -->
+      <div class="sms-status-banner sms-status-banner--offline" id="sms-status-banner">
+        <div class="sms-status-banner__dot sms-status-banner__dot--offline" id="sms-status-dot"></div>
+        <div>
+          <div class="sms-status-banner__text" id="sms-status-text">Checking...</div>
+          <div class="sms-status-banner__hint" id="sms-status-hint">Loading SMS gateway status</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="sms-tabs" role="tablist">
+        <button class="sms-tab active" data-stab="overview">Overview</button>
+        <button class="sms-tab" data-stab="devices">Devices</button>
+        <button class="sms-tab" data-stab="outbound">Outbound</button>
+        <button class="sms-tab" data-stab="inbound">Inbound</button>
+        <button class="sms-tab" data-stab="tenants">Tenants</button>
+        <button class="sms-tab" data-stab="keys">API Keys</button>
+        <button class="sms-tab" data-stab="webhooks">Webhooks</button>
+        <button class="sms-tab" data-stab="audit">Audit Log</button>
+      </div>
+
+      <!-- ═══ Overview ═══ -->
+      <div class="sms-panel active" id="sp-overview">
+        <div class="sms-kpi-grid" id="sms-kpis">
+          <div class="sms-kpi"><div class="sms-kpi__value" id="kpi-sent">—</div><div class="sms-kpi__label">Sent (24h)</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value sms-kpi__value--green" id="kpi-delivered">—</div><div class="sms-kpi__label">Delivered</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value sms-kpi__value--red" id="kpi-failed">—</div><div class="sms-kpi__label">Failed</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value" id="kpi-inbound">—</div><div class="sms-kpi__label">Inbound</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value sms-kpi__value--yellow" id="kpi-queue">—</div><div class="sms-kpi__label">Queue Depth</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value sms-kpi__value--green" id="kpi-devices">—</div><div class="sms-kpi__label">Devices Online</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value" id="kpi-tenants">—</div><div class="sms-kpi__label">Tenants</div></div>
+          <div class="sms-kpi"><div class="sms-kpi__value" id="kpi-keys">—</div><div class="sms-kpi__label">Active Keys</div></div>
+        </div>
+        <div class="ops-section">
+          <h2 class="ops-section__title">Worker Status</h2>
+          <div class="health-grid" id="worker-health-grid">
+            <div class="health-item">
+              <div class="health-item__dot health-item__dot--checking" id="worker-dot"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">SMS Worker</div>
+                <div class="health-item__url" id="worker-status-text">checking…</div>
+              </div>
+            </div>
+            <div class="health-item">
+              <div class="health-item__dot health-item__dot--checking" id="queue-dot"></div>
+              <div class="health-item__info">
+                <div class="health-item__name">Message Queue</div>
+                <div class="health-item__url" id="queue-status-text">checking…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Devices ═══ -->
+      <div class="sms-panel" id="sp-devices">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 class="ops-section__title" style="margin:0">Registered Devices</h2>
+          <button class="sms-btn sms-btn--primary" onclick="showAddDevice()">+ Add Device</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Tenant</th><th>Pool</th><th>Last Seen</th><th>Actions</th></tr></thead>
+            <tbody id="devices-tbody"><tr><td colspan="7" class="sms-loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Outbound ═══ -->
+      <div class="sms-panel" id="sp-outbound">
+        <h2 class="ops-section__title">Outbound Messages</h2>
+        <div class="sms-form-row" style="margin-bottom:16px">
+          <div class="sms-form-group" style="max-width:150px">
+            <label>Status</label>
+            <select id="out-filter-status" onchange="loadOutbound()">
+              <option value="">All</option>
+              <option value="queued">Queued</option>
+              <option value="processing">Processing</option>
+              <option value="sent">Sent</option>
+              <option value="delivered">Delivered</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>To</th><th>Status</th><th>Device</th><th>Attempts</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="outbound-tbody"><tr><td colspan="6" class="sms-loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Inbound ═══ -->
+      <div class="sms-panel" id="sp-inbound">
+        <h2 class="ops-section__title">Inbound Messages</h2>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>From</th><th>Device</th><th>Message</th><th>Received</th></tr></thead>
+            <tbody id="inbound-tbody"><tr><td colspan="4" class="sms-loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Tenants ═══ -->
+      <div class="sms-panel" id="sp-tenants">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 class="ops-section__title" style="margin:0">Tenants</h2>
+          <button class="sms-btn sms-btn--primary" onclick="showAddTenant()">+ New Tenant</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>Name</th><th>Slug</th><th>Plan</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+            <tbody id="tenants-tbody"><tr><td colspan="6" class="sms-loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ API Keys ═══ -->
+      <div class="sms-panel" id="sp-keys">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2 class="ops-section__title" style="margin:0">API Keys</h2>
+          <div style="display:flex;gap:10px;align-items:center">
+            <select id="keys-tenant-filter" onchange="loadKeys()" style="padding:7px 12px;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+              <option value="">Select tenant…</option>
+            </select>
+            <button class="sms-btn sms-btn--primary" onclick="showAddKey()">+ New Key</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>Name</th><th>Last 4</th><th>Scopes</th><th>RPM</th><th>Status</th><th>Last Used</th><th>Actions</th></tr></thead>
+            <tbody id="keys-tbody"><tr><td colspan="7" class="sms-empty">Select a tenant to view keys</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Webhooks ═══ -->
+      <div class="sms-panel" id="sp-webhooks">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <h2 class="ops-section__title" style="margin:0">Webhooks</h2>
+          <div style="display:flex;gap:10px;align-items:center">
+            <select id="wh-tenant-filter" onchange="loadWebhooks()" style="padding:7px 12px;font-size:.78rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+              <option value="">Select tenant…</option>
+            </select>
+            <button class="sms-btn sms-btn--primary" onclick="showAddWebhook()">+ New Webhook</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>Event</th><th>URL</th><th>Status</th><th>Last Triggered</th><th>Actions</th></tr></thead>
+            <tbody id="wh-tbody"><tr><td colspan="5" class="sms-empty">Select a tenant to view webhooks</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Audit Log ═══ -->
+      <div class="sms-panel" id="sp-audit">
+        <h2 class="ops-section__title">Audit Log</h2>
+        <div style="overflow-x:auto">
+          <table class="sms-table">
+            <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Details</th></tr></thead>
+            <tbody id="audit-tbody"><tr><td colspan="5" class="sms-loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ Modals ═══ -->
+  <div class="sms-modal-overlay" id="modal-overlay">
+    <div class="sms-modal" id="modal-content"></div>
+  </div>
+
+  <script>
+  (function(){
+    'use strict';
+
+    var API = '/v1/admin/sms';
+    var tenantsCache = [];
+
+    /* ── Tab switching ─────────────────────────────────── */
+    var tabs = document.querySelectorAll('.sms-tab');
+    var panels = document.querySelectorAll('.sms-panel');
+    var savedTab = sessionStorage.getItem('sms_active_tab') || 'overview';
+
+    function activateTab(name) {
+      tabs.forEach(function(t){
+        var a = t.dataset.stab === name;
+        t.classList.toggle('active', a);
+      });
+      panels.forEach(function(p){
+        p.classList.toggle('active', p.id === 'sp-' + name);
+      });
+      sessionStorage.setItem('sms_active_tab', name);
+      // Load data on tab switch
+      if (name === 'devices') loadDevices();
+      if (name === 'outbound') loadOutbound();
+      if (name === 'inbound') loadInbound();
+      if (name === 'tenants') loadTenants();
+      if (name === 'keys') loadKeys();
+      if (name === 'webhooks') loadWebhooks();
+      if (name === 'audit') loadAudit();
+    }
+
+    tabs.forEach(function(t){
+      t.addEventListener('click', function(){ activateTab(this.dataset.stab); });
+    });
+    activateTab(savedTab);
+
+    /* ── Helpers ─────────────────────────────────────── */
+    function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+    function fmtDate(d){ if(!d)return '—'; return new Date(d).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+    function fmtAgo(d){ if(!d)return 'never'; var s=Math.floor((Date.now()-new Date(d))/1000); if(s<60)return s+'s ago'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
+    function statusBadge(s){ return '<span class="sms-badge sms-badge--'+(s||'offline')+'">'+esc(s||'unknown')+'</span>'; }
+
+    function apiCall(method,path,body){
+      var opts={method:method,headers:{'Content-Type':'application/json'}};
+      if(body) opts.body=JSON.stringify(body);
+      return fetch(API+path,opts).then(function(r){return r.json();});
+    }
+
+    function showModal(html){
+      document.getElementById('modal-content').innerHTML=html;
+      document.getElementById('modal-overlay').classList.add('active');
+    }
+    function closeModal(){
+      document.getElementById('modal-overlay').classList.remove('active');
+    }
+    window.closeModal=closeModal;
+    document.getElementById('modal-overlay').addEventListener('click',function(e){
+      if(e.target===this) closeModal();
+    });
+
+    /* ── Overview / Health ───────────────────────────── */
+    function loadHealth(){
+      apiCall('GET','/stats').then(function(d){
+        // KPIs
+        var el=function(id){return document.getElementById(id);};
+        el('kpi-sent').textContent=d.metrics_24h?d.metrics_24h.sent:'0';
+        el('kpi-delivered').textContent=d.metrics_24h?(d.metrics_24h.sent-d.metrics_24h.failed):'0';
+        el('kpi-failed').textContent=d.metrics_24h?d.metrics_24h.failed:'0';
+        el('kpi-inbound').textContent=d.metrics_24h?d.metrics_24h.inbound:'0';
+        el('kpi-queue').textContent=d.queue?d.queue.depth:'0';
+        el('kpi-devices').textContent=d.devices?d.devices.online:'0';
+        el('kpi-tenants').textContent=d.tenants||'0';
+        el('kpi-keys').textContent=d.active_keys||'0';
+
+        // Status banner
+        var banner=el('sms-status-banner');
+        var dot=el('sms-status-dot');
+        var text=el('sms-status-text');
+        var hint=el('sms-status-hint');
+        banner.className='sms-status-banner sms-status-banner--'+d.status;
+        dot.className='sms-status-banner__dot sms-status-banner__dot--'+d.status;
+        if(d.status==='online'){
+          text.textContent='SMS Gateway Online';
+          hint.textContent=d.devices.online+' device(s) active · Worker running';
+        }else if(d.status==='degraded'){
+          text.textContent='SMS Gateway Degraded';
+          hint.textContent='Some components need attention';
+        }else{
+          text.textContent='SMS Gateway Offline';
+          hint.textContent='No devices connected or worker not running';
+        }
+
+        // Worker status
+        var wDot=el('worker-dot');
+        var wText=el('worker-status-text');
+        if(d.worker&&d.worker.healthy){
+          wDot.className='health-item__dot health-item__dot--ok';
+          wText.textContent='Running · '+d.worker.messages_processed+' processed · last: '+fmtAgo(d.worker.last_heartbeat);
+        }else{
+          wDot.className='health-item__dot health-item__dot--offline';
+          wText.textContent=d.worker?d.worker.status:'unknown';
+        }
+
+        var qDot=el('queue-dot');
+        var qText=el('queue-status-text');
+        var depth=d.queue?d.queue.depth:0;
+        if(depth===0){
+          qDot.className='health-item__dot health-item__dot--ok';
+          qText.textContent='Empty';
+        }else if(depth<50){
+          qDot.className='health-item__dot health-item__dot--ok';
+          qText.textContent=depth+' messages queued · oldest: '+fmtAgo(d.queue.oldest);
+        }else{
+          qDot.className='health-item__dot health-item__dot--offline';
+          qText.textContent=depth+' messages backlogged!';
+        }
+      }).catch(function(){});
+    }
+    loadHealth();
+    setInterval(loadHealth,15000);
+
+    /* ── Tenants ─────────────────────────────────────── */
+    function loadTenants(){
+      apiCall('GET','/tenants').then(function(d){
+        tenantsCache=d.tenants||[];
+        updateTenantSelectors();
+        var tbody=document.getElementById('tenants-tbody');
+        if(!tenantsCache.length){tbody.innerHTML='<tr><td colspan="6" class="sms-empty">No tenants</td></tr>';return;}
+        tbody.innerHTML=tenantsCache.map(function(t){
+          return '<tr>'+
+            '<td><strong>'+esc(t.name)+'</strong></td>'+
+            '<td class="sms-table__mono">'+esc(t.slug)+'</td>'+
+            '<td>'+esc(t.plan)+'</td>'+
+            '<td>'+statusBadge(t.status)+'</td>'+
+            '<td>'+fmtDate(t.created_at)+'</td>'+
+            '<td>'+
+              (t.status==='active'?'<button class="sms-btn sms-btn--danger sms-btn--sm" onclick="suspendTenant(\''+t.id+'\')">Suspend</button>':
+              '<button class="sms-btn sms-btn--sm" onclick="activateTenant(\''+t.id+'\')">Activate</button>')+
+            '</td>'+
+          '</tr>';
+        }).join('');
+      });
+    }
+
+    function updateTenantSelectors(){
+      var opts='<option value="">Select tenant…</option>'+tenantsCache.map(function(t){
+        return '<option value="'+t.id+'">'+esc(t.name)+'</option>';
+      }).join('');
+      var kf=document.getElementById('keys-tenant-filter');
+      var wf=document.getElementById('wh-tenant-filter');
+      if(kf) kf.innerHTML=opts;
+      if(wf) wf.innerHTML=opts;
+    }
+
+    window.showAddTenant=function(){
+      showModal(
+        '<div class="sms-modal__title">New Tenant</div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Name</label><input id="m-t-name" placeholder="Acme Corp"></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Slug</label><input id="m-t-slug" placeholder="acme"></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Plan</label><select id="m-t-plan"><option value="free">Free</option><option value="starter">Starter</option><option value="business">Business</option><option value="enterprise">Enterprise</option></select></div></div>'+
+        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" onclick="createTenantSubmit()">Create</button></div>'
+      );
+    };
+
+    window.createTenantSubmit=function(){
+      apiCall('POST','/tenants',{
+        name:document.getElementById('m-t-name').value,
+        slug:document.getElementById('m-t-slug').value,
+        plan:document.getElementById('m-t-plan').value
+      }).then(function(d){
+        if(d.error){alert(d.error);return;}
+        closeModal();loadTenants();
+      });
+    };
+
+    window.suspendTenant=function(id){
+      if(!confirm('Suspend this tenant? All API access will be blocked.'))return;
+      apiCall('PATCH','/tenants/'+id,{status:'suspended'}).then(function(){loadTenants();});
+    };
+    window.activateTenant=function(id){
+      apiCall('PATCH','/tenants/'+id,{status:'active'}).then(function(){loadTenants();});
+    };
+
+    /* ── Devices ─────────────────────────────────────── */
+    function loadDevices(){
+      apiCall('GET','/devices').then(function(d){
+        var tbody=document.getElementById('devices-tbody');
+        var devs=d.devices||[];
+        if(!devs.length){tbody.innerHTML='<tr><td colspan="7" class="sms-empty">No devices registered</td></tr>';return;}
+        tbody.innerHTML=devs.map(function(dev){
+          return '<tr>'+
+            '<td><strong>'+esc(dev.name)+'</strong></td>'+
+            '<td class="sms-table__mono">'+esc(dev.phone_number||'—')+'</td>'+
+            '<td>'+statusBadge(dev.status)+'</td>'+
+            '<td>'+esc(dev.tenant_id?'Assigned':'—')+'</td>'+
+            '<td>'+(dev.is_shared_pool?'<span class="sms-badge sms-badge--active">Shared</span>':'—')+'</td>'+
+            '<td>'+fmtAgo(dev.last_seen_at)+'</td>'+
+            '<td style="white-space:nowrap">'+
+              '<button class="sms-btn sms-btn--sm" onclick="viewDeviceEvents(\''+dev.id+'\')">Events</button> '+
+              '<button class="sms-btn sms-btn--sm" onclick="rotateDevToken(\''+dev.id+'\')">Rotate</button> '+
+              (dev.is_enabled?
+                '<button class="sms-btn sms-btn--danger sms-btn--sm" onclick="toggleDevice(\''+dev.id+'\',false)">Disable</button>':
+                '<button class="sms-btn sms-btn--sm" onclick="toggleDevice(\''+dev.id+'\',true)">Enable</button>')+
+            '</td>'+
+          '</tr>';
+        }).join('');
+      });
+    }
+
+    window.showAddDevice=function(){
+      showModal(
+        '<div class="sms-modal__title">Add Device</div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Name</label><input id="m-d-name" placeholder="Pixel 7 - Office"></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Phone Number (optional)</label><input id="m-d-phone" placeholder="+6281234567890"></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Tenant (optional)</label><select id="m-d-tenant"><option value="">None (shared pool)</option>'+(tenantsCache.map(function(t){return '<option value="'+t.id+'">'+esc(t.name)+'</option>';}).join(''))+'</select></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label><input type="checkbox" id="m-d-shared" checked> Shared Pool Device</label></div></div>'+
+        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" onclick="createDeviceSubmit()">Add Device</button></div>'
+      );
+    };
+
+    window.createDeviceSubmit=function(){
+      var tenantId=document.getElementById('m-d-tenant').value;
+      apiCall('POST','/devices',{
+        name:document.getElementById('m-d-name').value,
+        phone_number:document.getElementById('m-d-phone').value||null,
+        tenant_id:tenantId||null,
+        is_shared_pool:document.getElementById('m-d-shared').checked
+      }).then(function(d){
+        if(d.error){alert(d.error);return;}
+        closeModal();
+        showModal(
+          '<div class="sms-modal__title">Device Created</div>'+
+          '<p style="font-size:.85rem;color:var(--text-muted)">Configure this token on the Android SMS Gateway app:</p>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ Device Token (save now)</div><div class="sms-secret-box__value">'+esc(d.device_token)+'</div></div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadDevices();">Done</button></div>'
+        );
+      });
+    };
+
+    window.toggleDevice=function(id,enable){
+      apiCall('PATCH','/devices/'+id,{is_enabled:enable,status:enable?'offline':'disabled'}).then(function(){loadDevices();});
+    };
+
+    window.rotateDevToken=function(id){
+      if(!confirm('Rotate device token? The old token will stop working.'))return;
+      apiCall('POST','/devices/'+id+'/rotate-token').then(function(d){
+        if(d.error){alert(d.error);return;}
+        showModal(
+          '<div class="sms-modal__title">Token Rotated</div>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ New Device Token</div><div class="sms-secret-box__value">'+esc(d.device_token)+'</div></div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadDevices();">Done</button></div>'
+        );
+      });
+    };
+
+    window.viewDeviceEvents=function(id){
+      apiCall('GET','/devices/'+id+'/events?limit=20').then(function(d){
+        var events=d.events||[];
+        var html='<div class="sms-modal__title">Device Events</div>';
+        if(!events.length){html+='<div class="sms-empty">No events</div>';}
+        else{
+          html+='<div class="sms-timeline">'+events.map(function(e){
+            return '<div class="sms-timeline__item"><div class="sms-timeline__time">'+fmtDate(e.created_at)+'</div><div class="sms-timeline__status">'+esc(e.event_type)+'</div><div class="sms-timeline__detail">'+esc(JSON.stringify(e.details))+'</div></div>';
+          }).join('')+'</div>';
+        }
+        html+='<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Close</button></div>';
+        showModal(html);
+      });
+    };
+
+    /* ── Outbound ─────────────────────────────────────── */
+    window.loadOutbound=function(){
+      var status=document.getElementById('out-filter-status').value;
+      var qs=status?'?status='+status:'';
+      apiCall('GET','/outbound'+qs).then(function(d){
+        var tbody=document.getElementById('outbound-tbody');
+        var msgs=d.messages||[];
+        if(!msgs.length){tbody.innerHTML='<tr><td colspan="6" class="sms-empty">No messages</td></tr>';return;}
+        tbody.innerHTML=msgs.map(function(m){
+          return '<tr>'+
+            '<td class="sms-table__mono">'+esc(m.to_number)+'</td>'+
+            '<td>'+statusBadge(m.status)+'</td>'+
+            '<td>'+esc(m.device_name||'—')+'</td>'+
+            '<td>'+m.attempts+'/'+m.max_attempts+'</td>'+
+            '<td>'+fmtDate(m.created_at)+'</td>'+
+            '<td><button class="sms-btn sms-btn--sm" onclick="viewMessage(\''+m.id+'\')">Detail</button></td>'+
+          '</tr>';
+        }).join('');
+      });
+    };
+
+    window.viewMessage=function(id){
+      apiCall('GET','/outbound/'+id).then(function(d){
+        var m=d.message;
+        var tl=d.timeline||[];
+        var html='<div class="sms-modal__title">Message Detail</div>'+
+          '<div style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px">'+
+          '<p><strong>To:</strong> '+esc(m.to_number)+'</p>'+
+          '<p><strong>Status:</strong> '+statusBadge(m.status)+'</p>'+
+          '<p><strong>Device:</strong> '+esc(m.device_name||'—')+'</p>'+
+          '<p><strong>Message:</strong></p><pre style="padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.78rem;white-space:pre-wrap">'+esc(m.message_body)+'</pre>'+
+          (m.last_error?'<p style="color:var(--red)"><strong>Error:</strong> '+esc(m.last_error)+'</p>':'')+
+          '</div>'+
+          '<h3 style="font-size:.85rem;font-weight:700;margin-bottom:10px">Timeline</h3>';
+        if(tl.length){
+          html+='<div class="sms-timeline">'+tl.map(function(e){
+            return '<div class="sms-timeline__item"><div class="sms-timeline__time">'+fmtDate(e.created_at)+'</div><div class="sms-timeline__status">'+esc(e.status)+'</div><div class="sms-timeline__detail">'+esc(JSON.stringify(e.details||{}))+'</div></div>';
+          }).join('')+'</div>';
+        }else{html+='<div class="sms-empty">No timeline events</div>';}
+        html+='<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Close</button></div>';
+        showModal(html);
+      });
+    };
+
+    /* ── Inbound ───────────────────────────────────────── */
+    function loadInbound(){
+      apiCall('GET','/inbound').then(function(d){
+        var tbody=document.getElementById('inbound-tbody');
+        var msgs=d.messages||[];
+        if(!msgs.length){tbody.innerHTML='<tr><td colspan="4" class="sms-empty">No inbound messages</td></tr>';return;}
+        tbody.innerHTML=msgs.map(function(m){
+          return '<tr>'+
+            '<td class="sms-table__mono">'+esc(m.from_number)+'</td>'+
+            '<td>'+esc(m.device_name||'—')+'</td>'+
+            '<td>'+esc((m.message_body||'').substring(0,80))+(m.message_body&&m.message_body.length>80?'…':'')+'</td>'+
+            '<td>'+fmtDate(m.created_at)+'</td>'+
+          '</tr>';
+        }).join('');
+      });
+    }
+
+    /* ── API Keys ──────────────────────────────────────── */
+    window.loadKeys=function(){
+      var tid=document.getElementById('keys-tenant-filter').value;
+      if(!tid){document.getElementById('keys-tbody').innerHTML='<tr><td colspan="7" class="sms-empty">Select a tenant to view keys</td></tr>';return;}
+      apiCall('GET','/keys?tenant_id='+tid).then(function(d){
+        var tbody=document.getElementById('keys-tbody');
+        var keys=d.keys||[];
+        if(!keys.length){tbody.innerHTML='<tr><td colspan="7" class="sms-empty">No API keys for this tenant</td></tr>';return;}
+        tbody.innerHTML=keys.map(function(k){
+          return '<tr>'+
+            '<td><strong>'+esc(k.name)+'</strong></td>'+
+            '<td class="sms-table__mono">****'+esc(k.key_last4)+'</td>'+
+            '<td>'+esc((k.scopes||[]).join(', '))+'</td>'+
+            '<td>'+k.rate_limit_rpm+'</td>'+
+            '<td>'+statusBadge(k.is_active?'active':'disabled')+'</td>'+
+            '<td>'+fmtAgo(k.last_used_at)+'</td>'+
+            '<td style="white-space:nowrap">'+
+              (k.is_active?
+                '<button class="sms-btn sms-btn--sm" onclick="rotateKey(\''+k.id+'\')">Rotate</button> '+
+                '<button class="sms-btn sms-btn--danger sms-btn--sm" onclick="revokeKey(\''+k.id+'\')">Revoke</button>':
+                '<span style="color:var(--text-dim);font-size:.72rem">Revoked</span>')+
+            '</td>'+
+          '</tr>';
+        }).join('');
+      });
+    };
+
+    window.showAddKey=function(){
+      var tid=document.getElementById('keys-tenant-filter').value;
+      if(!tid){alert('Select a tenant first');return;}
+      showModal(
+        '<div class="sms-modal__title">Create API Key</div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Name</label><input id="m-k-name" placeholder="Production Key"></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Rate Limit (RPM)</label><input type="number" id="m-k-rpm" value="60" min="1" max="1000"></div></div>'+
+        '<div style="margin-bottom:12px"><label style="font-size:.72rem;font-weight:600;color:var(--text-dim);text-transform:uppercase">Scopes</label>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">'+
+        '<label style="font-size:.78rem;color:var(--text-muted)"><input type="checkbox" class="m-k-scope" value="sms:send" checked> sms:send</label>'+
+        '<label style="font-size:.78rem;color:var(--text-muted)"><input type="checkbox" class="m-k-scope" value="sms:read" checked> sms:read</label>'+
+        '<label style="font-size:.78rem;color:var(--text-muted)"><input type="checkbox" class="m-k-scope" value="sms:inbox"> sms:inbox</label>'+
+        '<label style="font-size:.78rem;color:var(--text-muted)"><input type="checkbox" class="m-k-scope" value="sms:webhooks:manage"> sms:webhooks:manage</label>'+
+        '</div></div>'+
+        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" onclick="createKeySubmit()">Create Key</button></div>'
+      );
+    };
+
+    window.createKeySubmit=function(){
+      var tid=document.getElementById('keys-tenant-filter').value;
+      var scopes=[];
+      document.querySelectorAll('.m-k-scope:checked').forEach(function(c){scopes.push(c.value);});
+      apiCall('POST','/keys',{
+        tenant_id:tid,
+        name:document.getElementById('m-k-name').value,
+        scopes:scopes,
+        rate_limit_rpm:parseInt(document.getElementById('m-k-rpm').value)||60
+      }).then(function(d){
+        if(d.error){alert(d.error);return;}
+        closeModal();
+        showModal(
+          '<div class="sms-modal__title">API Key Created</div>'+
+          '<p style="font-size:.85rem;color:var(--text-muted)">'+esc(d.warning)+'</p>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ API Key Secret</div><div class="sms-secret-box__value">'+esc(d.secret)+'</div></div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadKeys();">Done</button></div>'
+        );
+      });
+    };
+
+    window.revokeKey=function(id){
+      if(!confirm('Revoke this API key? This cannot be undone.'))return;
+      apiCall('DELETE','/keys/'+id).then(function(){loadKeys();});
+    };
+
+    window.rotateKey=function(id){
+      if(!confirm('Rotate this key? The old key will be revoked immediately.'))return;
+      apiCall('POST','/keys/'+id+'/rotate').then(function(d){
+        if(d.error){alert(d.error);return;}
+        showModal(
+          '<div class="sms-modal__title">Key Rotated</div>'+
+          '<p style="font-size:.85rem;color:var(--text-muted)">'+esc(d.warning)+'</p>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ New API Key</div><div class="sms-secret-box__value">'+esc(d.secret)+'</div></div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadKeys();">Done</button></div>'
+        );
+      });
+    };
+
+    /* ── Webhooks ──────────────────────────────────────── */
+    window.loadWebhooks=function(){
+      var tid=document.getElementById('wh-tenant-filter').value;
+      if(!tid){document.getElementById('wh-tbody').innerHTML='<tr><td colspan="5" class="sms-empty">Select a tenant to view webhooks</td></tr>';return;}
+      apiCall('GET','/webhooks?tenant_id='+tid).then(function(d){
+        var tbody=document.getElementById('wh-tbody');
+        var whs=d.webhooks||[];
+        if(!whs.length){tbody.innerHTML='<tr><td colspan="5" class="sms-empty">No webhooks configured</td></tr>';return;}
+        tbody.innerHTML=whs.map(function(w){
+          return '<tr>'+
+            '<td>'+esc(w.event_type)+'</td>'+
+            '<td class="sms-table__mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(w.url)+'</td>'+
+            '<td>'+statusBadge(w.is_active?'active':'disabled')+'</td>'+
+            '<td>'+fmtAgo(w.last_triggered)+'</td>'+
+            '<td style="white-space:nowrap">'+
+              '<button class="sms-btn sms-btn--sm" onclick="rotateWh(\''+w.id+'\')">Rotate Secret</button> '+
+              '<button class="sms-btn sms-btn--danger sms-btn--sm" onclick="deleteWh(\''+w.id+'\')">Delete</button>'+
+            '</td>'+
+          '</tr>';
+        }).join('');
+      });
+    };
+
+    window.showAddWebhook=function(){
+      var tid=document.getElementById('wh-tenant-filter').value;
+      if(!tid){alert('Select a tenant first');return;}
+      showModal(
+        '<div class="sms-modal__title">New Webhook</div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Event Type</label><select id="m-w-event"><option value="sms.sent">sms.sent</option><option value="sms.delivered">sms.delivered</option><option value="sms.failed">sms.failed</option><option value="sms.inbound">sms.inbound</option><option value="device.status">device.status</option></select></div></div>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>URL</label><input id="m-w-url" placeholder="https://example.com/webhook"></div></div>'+
+        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" onclick="createWhSubmit()">Create</button></div>'
+      );
+    };
+
+    window.createWhSubmit=function(){
+      var tid=document.getElementById('wh-tenant-filter').value;
+      apiCall('POST','/webhooks',{
+        tenant_id:tid,
+        event_type:document.getElementById('m-w-event').value,
+        url:document.getElementById('m-w-url').value
+      }).then(function(d){
+        if(d.error){alert(d.error);return;}
+        closeModal();
+        showModal(
+          '<div class="sms-modal__title">Webhook Created</div>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ Signing Secret</div><div class="sms-secret-box__value">'+esc(d.signing_secret)+'</div></div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadWebhooks();">Done</button></div>'
+        );
+      });
+    };
+
+    window.rotateWh=function(id){
+      if(!confirm('Rotate webhook signing secret?'))return;
+      apiCall('POST','/webhooks/'+id+'/rotate').then(function(d){
+        if(d.error){alert(d.error);return;}
+        showModal(
+          '<div class="sms-modal__title">Secret Rotated</div>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ New Signing Secret</div><div class="sms-secret-box__value">'+esc(d.signing_secret)+'</div></div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadWebhooks();">Done</button></div>'
+        );
+      });
+    };
+
+    window.deleteWh=function(id){
+      if(!confirm('Delete this webhook?'))return;
+      apiCall('DELETE','/webhooks/'+id).then(function(){loadWebhooks();});
+    };
+
+    /* ── Audit Log ─────────────────────────────────────── */
+    function loadAudit(){
+      apiCall('GET','/audit?limit=50').then(function(d){
+        var tbody=document.getElementById('audit-tbody');
+        var logs=d.logs||[];
+        if(!logs.length){tbody.innerHTML='<tr><td colspan="5" class="sms-empty">No audit events</td></tr>';return;}
+        tbody.innerHTML=logs.map(function(l){
+          return '<tr>'+
+            '<td>'+fmtDate(l.created_at)+'</td>'+
+            '<td>'+esc(l.actor)+'</td>'+
+            '<td><strong>'+esc(l.action)+'</strong></td>'+
+            '<td>'+esc(l.resource||'')+(l.resource_id?' <span class="sms-table__mono">'+esc(l.resource_id.substring(0,8))+'…</span>':'')+'</td>'+
+            '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+esc(JSON.stringify(l.details||{}))+'</td>'+
+          '</tr>';
+        }).join('');
+      });
+    }
+
+    /* Initial tenant load for selectors */
+    apiCall('GET','/tenants').then(function(d){
+      tenantsCache=d.tenants||[];
+      updateTenantSelectors();
+    }).catch(function(){});
+
+  })();
+  </script>
+</body>
+</html>
