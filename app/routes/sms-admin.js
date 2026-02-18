@@ -64,6 +64,8 @@ const {
   auditLog,
   getHealthMetrics,
   smsQuery,
+  genRequestId,
+  getDbDebugInfo,
 } = require('../lib/sms-db');
 
 const router = Router();
@@ -302,24 +304,41 @@ router.post('/keys/:id/rotate', async (req, res) => {
 /* ━━━ Devices ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 router.get('/devices', async (req, res) => {
+  const rid = genRequestId();
+  const tenantId = req.query.tenant_id || null;
   try {
-    const devices = await listDevices(req.query.tenant_id || null);
-    res.json({ devices });
+    console.log(`[sms-admin] GET /devices rid=${rid} tenant_id=${tenantId || 'ALL'}`);
+    const devices = await listDevices(tenantId, rid);
+    console.log(`[sms-admin] GET /devices rid=${rid} count=${devices.length}`);
+    res.json({ devices, request_id: rid });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to list devices' });
+    console.error(`[sms-admin] GET /devices FAILED rid=${rid} err=${err.message}`, err.stack);
+    res.status(500).json({ error: 'Failed to list devices', detail: err.message, request_id: rid });
   }
 });
 
 router.post('/devices', async (req, res) => {
+  const rid = genRequestId();
   const { tenant_id, name, phone_number, is_shared_pool } = req.body || {};
-  if (!name) return res.status(400).json({ error: '`name` is required' });
+  if (!name) return res.status(400).json({ error: '`name` is required', request_id: rid });
+
+  // Validate shared-pool ↔ tenant mutual exclusivity
+  if (is_shared_pool && tenant_id) {
+    return res.status(400).json({
+      error: 'Cannot set is_shared_pool=true with a tenant_id. Shared pool devices must not be assigned to a tenant.',
+      request_id: rid,
+    });
+  }
 
   try {
+    console.log(`[sms-admin] POST /devices rid=${rid} name=${name} tenant_id=${tenant_id || 'null'} shared=${!!is_shared_pool}`);
+
     const { device, deviceToken } = await createDevice({
       tenantId: tenant_id || null,
       name,
       phoneNumber: phone_number,
       isSharedPool: is_shared_pool || false,
+      requestId: rid,
     });
 
     await auditLog({
@@ -328,17 +347,20 @@ router.post('/devices', async (req, res) => {
       action: 'device.create',
       resource: 'sms_devices',
       resourceId: device.id,
-      details: { name, phone_number },
+      details: { name, phone_number, is_shared_pool: device.is_shared_pool, request_id: rid },
       ipAddress: getIp(req),
     });
 
+    console.log(`[sms-admin] POST /devices OK rid=${rid} id=${device.id}`);
     res.status(201).json({
       device,
       device_token: deviceToken,
       warning: 'Save the device token. Configure it on the Android device.',
+      request_id: rid,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create device' });
+    console.error(`[sms-admin] POST /devices FAILED rid=${rid} err=${err.message}`, err.stack);
+    res.status(500).json({ error: 'Failed to create device', detail: err.message, request_id: rid });
   }
 });
 
@@ -582,7 +604,18 @@ router.get('/audit', async (req, res) => {
     const result = await smsQuery(q, params);
     res.json({ logs: result.rows, count: result.rows.length });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to get audit logs' });
+    res.status(500).json({ error: 'Failed to get audit logs', detail: err.message });
+  }
+});
+
+/* ━━━ Debug DB ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+router.get('/_debug/db', async (_req, res) => {
+  try {
+    const info = await getDbDebugInfo();
+    res.json(info);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

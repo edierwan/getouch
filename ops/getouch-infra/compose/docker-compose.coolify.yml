@@ -10,26 +10,132 @@
 #
 # NOTE: Coolify by default uses port 8000 for its web UI.
 #       We DO NOT expose this publicly. Caddy reverse-proxies to it.
+#
+# Services:
+#   coolify        — Main Laravel app (UI + API)
+#   coolify-db     — Dedicated PostgreSQL 15 for Coolify metadata
+#   coolify-redis  — Redis for queues, cache, and session
+#   coolify-realtime — Soketi WebSocket server (real-time UI updates)
 
 services:
+  # ── PostgreSQL for Coolify ──────────────────────────────────────
+  coolify-db:
+    image: postgres:16-alpine
+    container_name: coolify-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coolify
+      POSTGRES_PASSWORD: ${COOLIFY_DB_PASSWORD:-coolify}
+      POSTGRES_DB: coolify
+      TZ: Asia/Kuala_Lumpur
+    volumes:
+      - /data/coolify/postgres:/var/lib/postgresql/data
+    networks:
+      - getouch_app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coolify -d coolify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Redis for Coolify ───────────────────────────────────────────
+  coolify-redis:
+    image: redis:7-alpine
+    container_name: coolify-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --save 60 1
+    volumes:
+      - /data/coolify/redis:/data
+    networks:
+      - getouch_app
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Soketi — Real-time WebSocket server ─────────────────────────
+  # Fixes "Cannot connect to real-time service" warning
+  coolify-realtime:
+    image: "ghcr.io/coollabsio/coolify-realtime:1.0.5"
+    container_name: coolify-realtime
+    restart: unless-stopped
+    environment:
+      SOKETI_DEBUG: "false"
+      SOKETI_DEFAULT_APP_ID: coolify
+      SOKETI_DEFAULT_APP_KEY: coolify
+      SOKETI_DEFAULT_APP_SECRET: coolify
+      SOKETI_PORT: "6001"
+      SOKETI_METRICS_ENABLED: "false"
+      APP_NAME: Coolify
+    ports:
+      - "127.0.0.1:6001:6001"
+    networks:
+      - getouch_app
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6001 || wget -qO- http://localhost:6001"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Coolify main app ────────────────────────────────────────────
   coolify:
     image: ghcr.io/coollabsio/coolify:latest
     container_name: coolify
     restart: unless-stopped
+    depends_on:
+      coolify-db:
+        condition: service_healthy
+      coolify-redis:
+        condition: service_healthy
+      coolify-realtime:
+        condition: service_started
     environment:
       TZ: Asia/Kuala_Lumpur
       # Laravel app encryption key
       APP_KEY: "base64:7h4kT3ZGvGzf7txJWQbwpYWwEdYe6V0t6QQ22pF38bc="
-      # Database connection (coolify-db runs on getouch_app network)
+      APP_NAME: Coolify
+      APP_ENV: production
+      APP_DEBUG: "false"
+      # Database connection
       DB_HOST: coolify-db
       DB_PORT: "5432"
       DB_DATABASE: coolify
       DB_USERNAME: coolify
-      DB_PASSWORD: coolify
-      # Redis connection (coolify-redis on same network)
+      DB_PASSWORD: ${COOLIFY_DB_PASSWORD:-coolify}
+      # Redis connection
       REDIS_HOST: coolify-redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ""
+      # Pusher / Soketi real-time config (server-side broadcasting)
+      PUSHER_APP_ID: coolify
+      PUSHER_APP_KEY: coolify
+      PUSHER_APP_SECRET: coolify
+      PUSHER_SCHEME: http
+      # PUSHER_HOST is intentionally UNSET so the browser JS
+      # falls back to window.location.hostname (coolify.getouch.co)
+      # PUSHER_PORT is intentionally UNSET so getRealtime() returns null
+      # and the browser uses the default port (443 via Cloudflare wss)
+      # Terminal config — routed through Caddy at /terminal/ws
+      TERMINAL_PROTOCOL: wss
+      TERMINAL_HOST: ""
+      TERMINAL_PORT: ""
     volumes:
       - /data/coolify:/data/coolify
       - /data/coolify/ssh:/var/www/html/storage/app/ssh

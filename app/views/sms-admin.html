@@ -290,6 +290,24 @@
     var API = '/v1/admin/sms';
     var tenantsCache = [];
 
+    /* ── Toast notification system ────────────────────── */
+    var toastContainer;
+    function initToast(){
+      toastContainer=document.createElement('div');
+      toastContainer.style.cssText='position:fixed;top:16px;right:16px;z-index:2000;display:flex;flex-direction:column;gap:8px;max-width:400px';
+      document.body.appendChild(toastContainer);
+    }
+    function toast(msg,type){
+      if(!toastContainer) initToast();
+      var el=document.createElement('div');
+      var bg=type==='error'?'rgba(239,68,68,.95)':type==='warn'?'rgba(234,179,8,.95)':'rgba(34,197,94,.95)';
+      el.style.cssText='padding:12px 18px;border-radius:8px;color:#fff;font-size:.82rem;font-weight:600;font-family:var(--font);box-shadow:0 4px 12px rgba(0,0,0,.3);background:'+bg+';cursor:pointer;transition:opacity .3s';
+      el.textContent=msg;
+      el.onclick=function(){el.style.opacity='0';setTimeout(function(){el.remove()},300)};
+      toastContainer.appendChild(el);
+      setTimeout(function(){if(el.parentNode){el.style.opacity='0';setTimeout(function(){el.remove()},300)}},6000);
+    }
+
     /* ── Tab switching ─────────────────────────────────── */
     var tabs = document.querySelectorAll('.sms-tab');
     var panels = document.querySelectorAll('.sms-panel');
@@ -328,7 +346,18 @@
     function apiCall(method,path,body){
       var opts={method:method,headers:{'Content-Type':'application/json'}};
       if(body) opts.body=JSON.stringify(body);
-      return fetch(API+path,opts).then(function(r){return r.json();});
+      return fetch(API+path,opts).then(function(r){
+        if(!r.ok){
+          return r.json().catch(function(){return{error:'HTTP '+r.status}}).then(function(d){
+            d._httpStatus=r.status;
+            return d;
+          });
+        }
+        return r.json();
+      }).catch(function(err){
+        console.error('[apiCall] Network error:',method,path,err);
+        return {error:'Network error: '+err.message};
+      });
     }
 
     function showModal(html){
@@ -470,14 +499,25 @@
     function loadDevices(){
       apiCall('GET','/devices').then(function(d){
         var tbody=document.getElementById('devices-tbody');
+        if(d.error){
+          console.error('[loadDevices] API error:',d.error,d.detail,d.request_id);
+          tbody.innerHTML='<tr><td colspan="7" class="sms-empty" style="color:var(--red)">Error loading devices: '+esc(d.error)+(d.detail?' — '+esc(d.detail):'')+(d.request_id?' ('+esc(d.request_id)+')':'')+'</td></tr>';
+          toast('Failed to load devices: '+(d.detail||d.error),'error');
+          return;
+        }
         var devs=d.devices||[];
         if(!devs.length){tbody.innerHTML='<tr><td colspan="7" class="sms-empty">No devices registered</td></tr>';return;}
         tbody.innerHTML=devs.map(function(dev){
+          var tenantName='—';
+          if(dev.tenant_id){
+            var t=tenantsCache.find(function(tc){return tc.id===dev.tenant_id;});
+            tenantName=t?esc(t.name):'<span class="sms-table__mono">'+esc(dev.tenant_id.substring(0,8))+'…</span>';
+          }
           return '<tr>'+
             '<td><strong>'+esc(dev.name)+'</strong></td>'+
             '<td class="sms-table__mono">'+esc(dev.phone_number||'—')+'</td>'+
             '<td>'+statusBadge(dev.status)+'</td>'+
-            '<td>'+esc(dev.tenant_id?'Assigned':'—')+'</td>'+
+            '<td>'+tenantName+'</td>'+
             '<td>'+(dev.is_shared_pool?'<span class="sms-badge sms-badge--active">Shared</span>':'—')+'</td>'+
             '<td>'+fmtAgo(dev.last_seen_at)+'</td>'+
             '<td style="white-space:nowrap">'+
@@ -497,29 +537,93 @@
         '<div class="sms-modal__title">Add Device</div>'+
         '<div class="sms-form-row"><div class="sms-form-group"><label>Name</label><input id="m-d-name" placeholder="Pixel 7 - Office"></div></div>'+
         '<div class="sms-form-row"><div class="sms-form-group"><label>Phone Number (optional)</label><input id="m-d-phone" placeholder="+6281234567890"></div></div>'+
-        '<div class="sms-form-row"><div class="sms-form-group"><label>Tenant (optional)</label><select id="m-d-tenant"><option value="">None (shared pool)</option>'+(tenantsCache.map(function(t){return '<option value="'+t.id+'">'+esc(t.name)+'</option>';}).join(''))+'</select></div></div>'+
-        '<div class="sms-form-row"><div class="sms-form-group"><label><input type="checkbox" id="m-d-shared" checked> Shared Pool Device</label></div></div>'+
-        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" onclick="createDeviceSubmit()">Add Device</button></div>'
+        '<div class="sms-form-row"><div class="sms-form-group"><label><input type="checkbox" id="m-d-shared" checked onchange="toggleSharedPool()"> Shared Pool Device</label></div></div>'+
+        '<div class="sms-form-row" id="m-d-tenant-row" style="display:none"><div class="sms-form-group"><label>Assign to Tenant</label><select id="m-d-tenant"><option value="">None</option>'+(tenantsCache.map(function(t){return '<option value="'+t.id+'">'+esc(t.name)+'</option>';}).join(''))+'</select></div></div>'+
+        '<div id="m-d-error" style="display:none;padding:10px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--radius-sm);color:var(--red);font-size:.78rem;margin-top:8px"></div>'+
+        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" id="m-d-submit" onclick="createDeviceSubmit()">Add Device</button></div>'
       );
     };
 
+    /* Toggle tenant selector based on shared pool checkbox */
+    window.toggleSharedPool=function(){
+      var shared=document.getElementById('m-d-shared').checked;
+      var tenantRow=document.getElementById('m-d-tenant-row');
+      var tenantSelect=document.getElementById('m-d-tenant');
+      if(shared){
+        tenantRow.style.display='none';
+        tenantSelect.value='';
+      }else{
+        tenantRow.style.display='';
+      }
+    };
+
     window.createDeviceSubmit=function(){
-      var tenantId=document.getElementById('m-d-tenant').value;
+      var nameEl=document.getElementById('m-d-name');
+      var name=nameEl.value.trim();
+      if(!name){nameEl.focus();nameEl.style.borderColor='var(--red)';return;}
+
+      var isShared=document.getElementById('m-d-shared').checked;
+      var tenantId=isShared?null:(document.getElementById('m-d-tenant').value||null);
+      var errEl=document.getElementById('m-d-error');
+      var submitBtn=document.getElementById('m-d-submit');
+      errEl.style.display='none';
+      submitBtn.disabled=true;
+      submitBtn.textContent='Creating…';
+
       apiCall('POST','/devices',{
-        name:document.getElementById('m-d-name').value,
+        name:name,
         phone_number:document.getElementById('m-d-phone').value||null,
-        tenant_id:tenantId||null,
-        is_shared_pool:document.getElementById('m-d-shared').checked
+        tenant_id:tenantId,
+        is_shared_pool:isShared
       }).then(function(d){
-        if(d.error){alert(d.error);return;}
+        submitBtn.disabled=false;
+        submitBtn.textContent='Add Device';
+        if(d.error){
+          errEl.textContent='Error: '+d.error+(d.detail?' — '+d.detail:'')+(d.request_id?' ('+d.request_id+')':'');
+          errEl.style.display='block';
+          toast('Failed to create device: '+(d.detail||d.error),'error');
+          return;
+        }
+        toast('Device created: '+d.device.name+' ('+d.device.id.substring(0,8)+'…)','ok');
         closeModal();
+
+        /* Show device token — one-time display */
         showModal(
-          '<div class="sms-modal__title">Device Created</div>'+
+          '<div class="sms-modal__title">Device Created ✓</div>'+
           '<p style="font-size:.85rem;color:var(--text-muted)">Configure this token on the Android SMS Gateway app:</p>'+
-          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ Device Token (save now)</div><div class="sms-secret-box__value">'+esc(d.device_token)+'</div></div>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">⚠️ Device Token (save now — shown only once)</div><div class="sms-secret-box__value" id="m-d-token-val">'+esc(d.device_token)+'</div></div>'+
+          '<div style="margin-top:8px"><button class="sms-btn sms-btn--sm" onclick="copyDeviceToken()">📋 Copy Token</button></div>'+
           '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadDevices();">Done</button></div>'
         );
+
+        /* Force-refresh list immediately (optimistic: device should appear) */
+        loadDevices();
+
+        /* Secondary check: verify device appears in list after a delay */
+        var createdId=d.device.id;
+        setTimeout(function(){
+          apiCall('GET','/devices').then(function(ld){
+            if(ld.error){toast('Warning: list endpoint errored after create — '+ld.error,'warn');return;}
+            var found=(ld.devices||[]).some(function(dev){return dev.id===createdId;});
+            if(!found){
+              toast('Warning: Device created ('+createdId.substring(0,8)+'…) but not visible in list. Check DB connection or filters. request_id='+(d.request_id||'?'),'warn');
+            }
+          });
+        },1500);
       });
+    };
+
+    window.copyDeviceToken=function(){
+      var val=document.getElementById('m-d-token-val');
+      if(val){
+        var text=val.textContent;
+        if(navigator.clipboard){
+          navigator.clipboard.writeText(text).then(function(){toast('Token copied to clipboard','ok');});
+        }else{
+          var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+          toast('Token copied','ok');
+        }
+      }
     };
 
     window.toggleDevice=function(id,enable){
@@ -786,9 +890,12 @@
 
     /* Initial tenant load for selectors */
     apiCall('GET','/tenants').then(function(d){
+      if(d.error){console.error('[init] Failed to load tenants:',d.error);toast('Failed to load tenants: '+d.error,'error');return;}
       tenantsCache=d.tenants||[];
       updateTenantSelectors();
-    }).catch(function(){});
+    }).catch(function(err){
+      console.error('[init] tenants error:',err);
+    });
 
   })();
   </script>

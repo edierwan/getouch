@@ -9,6 +9,15 @@
 const { Pool } = require('pg');
 const crypto = require('crypto');
 
+/* ── Request-ID helper ──────────────────────────────────── */
+function genRequestId() {
+  return 'req_' + crypto.randomBytes(8).toString('hex');
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 /* ── SMS Pool ──────────────────────────────────────────── */
 const SMS_DATABASE_URL = process.env.SMS_DATABASE_URL;
 let smsPool;
@@ -212,7 +221,8 @@ async function rotateApiKey(id) {
 }
 
 /* ── Device CRUD ───────────────────────────────────────── */
-async function listDevices(tenantId) {
+async function listDevices(tenantId, requestId) {
+  const rid = requestId || genRequestId();
   let q = `SELECT * FROM sms_devices`;
   const params = [];
   if (tenantId) {
@@ -220,8 +230,14 @@ async function listDevices(tenantId) {
     params.push(tenantId);
   }
   q += ` ORDER BY created_at DESC`;
-  const res = await smsQuery(q, params);
-  return res.rows;
+  try {
+    const res = await smsQuery(q, params);
+    console.log(`[sms-db] listDevices rid=${rid} tenant_id=${tenantId || 'ALL'} returned=${res.rows.length}`);
+    return res.rows;
+  } catch (err) {
+    console.error(`[sms-db] listDevices FAILED rid=${rid} tenant_id=${tenantId || 'ALL'} err=${err.message}`);
+    throw err;
+  }
 }
 
 async function getDevice(id) {
@@ -229,15 +245,40 @@ async function getDevice(id) {
   return res.rows[0] || null;
 }
 
-async function createDevice({ tenantId, name, phoneNumber, isSharedPool }) {
+async function createDevice({ tenantId, name, phoneNumber, isSharedPool, requestId }) {
+  const rid = requestId || genRequestId();
   const deviceToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(deviceToken);
+  const tokenLast4 = deviceToken.slice(-4);
+
+  // Validate shared-pool ↔ tenant mutual exclusivity
+  const safeTenantId = isSharedPool ? null : (tenantId || null);
+  const safeShared = safeTenantId ? false : (isSharedPool || false);
+
+  console.log(`[sms-db] createDevice rid=${rid} name=${name} tenant_id=${safeTenantId} shared=${safeShared}`);
+
   const res = await smsQuery(
-    `INSERT INTO sms_devices (tenant_id, name, phone_number, device_token, is_shared_pool)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO sms_devices (tenant_id, name, phone_number, device_token, is_shared_pool, pairing_token_hash, pairing_token_last4)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [tenantId || null, name, phoneNumber || null, deviceToken, isSharedPool || false]
+    [safeTenantId, name, phoneNumber || null, deviceToken, safeShared, tokenHash, tokenLast4]
   );
-  return { device: res.rows[0], deviceToken };
+
+  const device = res.rows[0];
+  if (!device) {
+    console.error(`[sms-db] createDevice FAILED rid=${rid} INSERT returned no rows`);
+    throw new Error('INSERT returned no rows — device not persisted');
+  }
+
+  // Post-insert verification: confirm the row is readable
+  const verify = await smsQuery(`SELECT id FROM sms_devices WHERE id = $1`, [device.id]);
+  if (!verify.rows.length) {
+    console.error(`[sms-db] createDevice VERIFY FAILED rid=${rid} id=${device.id} — row not found after insert`);
+    throw new Error('Device created but not readable — possible DB mismatch');
+  }
+
+  console.log(`[sms-db] createDevice OK rid=${rid} id=${device.id}`);
+  return { device, deviceToken };
 }
 
 async function updateDevice(id, updates) {
@@ -713,13 +754,39 @@ async function initSmsSchema() {
   }
 }
 
+/* ── DB Debug Info (admin only) ────────────────────────── */
+async function getDbDebugInfo() {
+  try {
+    const [dbInfo, schemaInfo, migrationCheck] = await Promise.all([
+      smsQuery(`SELECT current_database() AS db_name, inet_server_addr() AS host, inet_server_port() AS port, current_schema() AS schema_name, version() AS pg_version`),
+      smsQuery(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE 'sms_%' ORDER BY table_name`),
+      smsQuery(`SELECT COUNT(*) as device_count FROM sms_devices`),
+    ]);
+    return {
+      database: dbInfo.rows[0]?.db_name,
+      host: dbInfo.rows[0]?.host,
+      port: dbInfo.rows[0]?.port,
+      schema: dbInfo.rows[0]?.schema_name,
+      pg_version: dbInfo.rows[0]?.pg_version,
+      sms_tables: schemaInfo.rows.map(r => r.table_name),
+      device_count: parseInt(migrationCheck.rows[0]?.device_count || 0),
+      pool_type: SMS_DATABASE_URL ? 'dedicated' : 'shared',
+    };
+  } catch (err) {
+    return { error: err.message, pool_type: SMS_DATABASE_URL ? 'dedicated' : 'shared' };
+  }
+}
+
 module.exports = {
   smsPool,
   smsQuery,
   smsGetClient,
   hashSmsKey,
   generateSmsKey,
+  genRequestId,
+  hashToken,
   initSmsSchema,
+  getDbDebugInfo,
   // Tenants
   getDefaultTenant,
   getTenantById,

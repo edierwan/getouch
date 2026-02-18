@@ -104,7 +104,24 @@ metrics.getouch.co:80 {
 # but users must log in to Coolify once. Session persists in browser.
 coolify.getouch.co:80 {
 	import security_headers
-	reverse_proxy coolify:8080
+
+	# WebSocket real-time (Soketi) — matches Pusher protocol paths
+	handle /app/* {
+		reverse_proxy coolify-realtime:6001
+	}
+	handle /apps/* {
+		reverse_proxy coolify-realtime:6001
+	}
+
+	# Terminal WebSocket — container exec terminal
+	handle /terminal/ws {
+		reverse_proxy coolify-realtime:6002
+	}
+
+	# Everything else → Coolify Laravel app
+	handle {
+		reverse_proxy coolify:8080
+	}
 }
 
 
