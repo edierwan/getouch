@@ -364,6 +364,63 @@ router.post('/internal/android/pair', async (req, res) => {
 });
 
 /**
+ * POST /v1/sms/internal/android/redeem-code — Redeem a one-time pairing code
+ * Android app calls this with the code from the deep link / QR.
+ * Returns device_token (never exposed in URL) + device info so the app
+ * can then call /pair to complete pairing.
+ */
+router.post('/internal/android/redeem-code', async (req, res) => {
+  const { code, device_info } = req.body || {};
+  if (!code) {
+    return res.status(400).json({ error: '`code` required' });
+  }
+
+  try {
+    const { redeemPairCode, auditLog: smsAuditLog, smsQuery: sq } = require('../lib/sms-db');
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
+
+    const device = await redeemPairCode(code, ip);
+    if (!device) {
+      return res.status(404).json({ error: 'Invalid, expired, or already-used pairing code' });
+    }
+    if (!device.is_enabled) {
+      return res.status(403).json({ error: 'Device is disabled' });
+    }
+
+    // Update device status + store device_info metadata
+    const metaUpdate = { paired_at: new Date().toISOString(), paired_via: 'pair_code' };
+    if (device_info) metaUpdate.device_info = device_info;
+    await sq(
+      `UPDATE sms_devices SET status = 'online', last_seen_at = NOW(), updated_at = NOW(),
+       metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1`,
+      [device.id, JSON.stringify(metaUpdate)]
+    );
+
+    await smsAuditLog({
+      tenantId: device.tenant_id,
+      action: 'device.paired_via_code',
+      actor: 'android-app',
+      resourceType: 'device',
+      resourceId: device.id,
+      details: { name: device.name, paired_via: 'pair_code', device_info },
+    });
+
+    res.json({
+      ok: true,
+      device_token: device.device_token,
+      device_id: device.id,
+      device_name: device.name,
+      tenant_name: device.tenant_name || 'Default',
+      server_time: Date.now(),
+      poll_interval_seconds: 10,
+    });
+  } catch (err) {
+    console.error('[sms-android] Redeem code error:', err.message);
+    res.status(500).json({ error: 'Code redemption failed' });
+  }
+});
+
+/**
  * POST /v1/sms/internal/android/heartbeat — Device heartbeat with HMAC
  */
 router.post('/internal/android/heartbeat', verifyDeviceSignature, async (req, res) => {

@@ -1,5 +1,7 @@
 package co.getouch.smsgateway.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -75,6 +77,15 @@ class PairingActivity : AppCompatActivity() {
             }
             doPairing(url, token)
         }
+
+        // Handle deep link intent
+        handleDeepLink(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLink(intent)
     }
 
     override fun onDestroy() {
@@ -83,11 +94,103 @@ class PairingActivity : AppCompatActivity() {
     }
 
     /**
+     * Handle deep link from /pair?code=XYZ or getouch-sms://pair?code=XYZ
+     * Redeems the one-time code server-side → gets device_token → pairs.
+     */
+    private fun handleDeepLink(intent: Intent?) {
+        val uri: Uri = intent?.data ?: return
+        val code = uri.getQueryParameter("code")
+        if (code.isNullOrBlank()) return
+
+        EventLogger.info("DeepLink", "Received pairing deep link")
+
+        // Extract server URL from the deep link host, or default
+        val serverUrl = when {
+            uri.scheme == "https" && uri.host != null -> "https://${uri.host}"
+            else -> "https://sms.getouch.co"
+        }
+        serverUrlInput.setText(serverUrl)
+        statusText.text = "Redeeming pairing code…"
+        statusText.visibility = View.VISIBLE
+
+        redeemPairCode(serverUrl, code)
+    }
+
+    /**
+     * Redeem a one-time pairing code. The server returns the device_token
+     * which is then stored locally — the token never appears in the URL.
+     */
+    private fun redeemPairCode(serverUrl: String, code: String) {
+        setLoading(true)
+        statusText.text = "Redeeming pairing code…"
+        statusText.visibility = View.VISIBLE
+
+        val deviceInfo = buildDeviceInfo()
+
+        scope.launch {
+            val apiClient = ApiClient(prefs)
+            val result = withContext(Dispatchers.IO) {
+                apiClient.redeemCode(serverUrl, code, deviceInfo)
+            }
+
+            when (result) {
+                is ApiResult.Success -> {
+                    val data = result.data
+                    // Store credentials from code redemption
+                    prefs.serverUrl = serverUrl
+                    prefs.deviceToken = data.device_token
+                    prefs.deviceId = data.device_id
+                    prefs.deviceName = data.device_name
+                    prefs.tenantName = data.tenant_name
+                    prefs.isPaired = true
+
+                    statusText.text = "Paired! Device: ${data.device_name}"
+                    EventLogger.info("Pairing", "Paired via code as ${data.device_name} (tenant: ${data.tenant_name})")
+
+                    GatewayForegroundService.start(this@PairingActivity)
+
+                    delay(1000)
+
+                    if (!prefs.batteryOptShown) {
+                        startActivity(Intent(this@PairingActivity, BatteryOptActivity::class.java))
+                    }
+
+                    finish()
+                }
+                is ApiResult.Error -> {
+                    setLoading(false)
+                    statusText.text = "Code redemption failed: ${result.message}"
+                    EventLogger.error("Pairing", "Code redemption failed: ${result.message}")
+                    // Allow manual pairing as fallback
+                    Toast.makeText(this@PairingActivity, "Code may be expired or already used. Try manual pairing.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /**
      * Handle QR code content.
-     * Expected format: JSON { "server": "https://sms.getouch.co", "token": "...", "device_id": "..." }
+     * Expected format: JSON { "server": "...", "token": "...", "device_id": "..." }
+     * Or a pairing URL like https://sms.getouch.co/pair?code=XYZ
      * Or just the raw token string.
      */
     private fun handleQrResult(content: String) {
+        // Check if it's a pairing URL with a code
+        try {
+            val uri = Uri.parse(content)
+            val code = uri.getQueryParameter("code")
+            if (!code.isNullOrBlank() && (uri.path == "/pair" || uri.host?.contains("getouch") == true)) {
+                val serverUrl = if (uri.scheme == "https" && uri.host != null) {
+                    "https://${uri.host}"
+                } else {
+                    "https://sms.getouch.co"
+                }
+                serverUrlInput.setText(serverUrl)
+                redeemPairCode(serverUrl, code)
+                return
+            }
+        } catch (_: Exception) { /* not a URL */ }
+
         try {
             val json = JSONObject(content)
             val server = json.optString("server", "https://sms.getouch.co").trimEnd('/')
@@ -106,6 +209,7 @@ class PairingActivity : AppCompatActivity() {
             // Treat as raw token
             tokenInput.setText(content.trim())
             statusText.text = "Token scanned. Tap Connect to pair."
+            statusText.visibility = View.VISIBLE
         }
     }
 
@@ -114,11 +218,7 @@ class PairingActivity : AppCompatActivity() {
         statusText.text = "Connecting to server…"
         statusText.visibility = View.VISIBLE
 
-        val deviceInfo = mapOf(
-            "model" to "${Build.MANUFACTURER} ${Build.MODEL}",
-            "android_version" to "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
-            "app_version" to getAppVersion()
-        )
+        val deviceInfo = buildDeviceInfo()
 
         scope.launch {
             val apiClient = ApiClient(prefs)
@@ -146,7 +246,7 @@ class PairingActivity : AppCompatActivity() {
 
                     // Show battery optimization guide if not shown
                     if (!prefs.batteryOptShown) {
-                        startActivity(android.content.Intent(
+                        startActivity(Intent(
                             this@PairingActivity,
                             BatteryOptActivity::class.java
                         ))
@@ -161,6 +261,14 @@ class PairingActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun buildDeviceInfo(): Map<String, String> {
+        return mapOf(
+            "model" to "${Build.MANUFACTURER} ${Build.MODEL}",
+            "android_version" to "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            "app_version" to getAppVersion()
+        )
     }
 
     private fun setLoading(loading: Boolean) {

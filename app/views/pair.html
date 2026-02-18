@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pair Device — Getouch SMS Gateway</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{background:#1e293b;border-radius:16px;padding:40px 32px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .logo{font-size:2rem;margin-bottom:8px}
+    h1{font-size:1.4rem;font-weight:600;margin-bottom:4px}
+    .subtitle{color:#94a3b8;font-size:.85rem;margin-bottom:24px}
+    .status{padding:14px 20px;border-radius:10px;font-size:.9rem;margin-bottom:20px;line-height:1.5}
+    .status--loading{background:#1e3a5f;border:1px solid #2563eb;color:#93c5fd}
+    .status--success{background:#14532d;border:1px solid #22c55e;color:#86efac}
+    .status--error{background:#450a0a;border:1px solid #ef4444;color:#fca5a5}
+    .status--info{background:#1e293b;border:1px solid #475569;color:#cbd5e1}
+    .btn{display:inline-block;padding:12px 28px;border-radius:10px;font-size:.95rem;font-weight:600;text-decoration:none;cursor:pointer;border:none;transition:all .15s}
+    .btn--primary{background:#2563eb;color:#fff}.btn--primary:hover{background:#1d4ed8}
+    .btn--outline{background:transparent;border:1px solid #475569;color:#e2e8f0;margin-top:10px}.btn--outline:hover{border-color:#94a3b8}
+    .hidden{display:none}
+    .manual{margin-top:20px;padding-top:16px;border-top:1px solid #334155}
+    .manual p{color:#94a3b8;font-size:.8rem;margin-bottom:8px}
+    .code-box{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:.85rem;color:#f1f5f9;word-break:break-all;cursor:pointer;user-select:all}
+    .code-box:active{background:#1e293b}
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:8px 20px;border-radius:8px;font-size:.85rem;opacity:0;transition:opacity .3s}
+    .toast.show{opacity:1}
+    .spinner{display:inline-block;width:18px;height:18px;border:2px solid #93c5fd;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">📱</div>
+    <h1>Getouch SMS Gateway</h1>
+    <p class="subtitle">Device Pairing</p>
+
+    <div id="status" class="status status--loading">
+      <span class="spinner"></span> Validating pairing code…
+    </div>
+
+    <div id="actions" class="hidden">
+      <a id="appLink" href="#" class="btn btn--primary">Open in SMS Gateway App</a>
+      <br>
+      <a href="https://github.com/edierwan/getouch/releases" target="_blank" class="btn btn--outline">Download App</a>
+    </div>
+
+    <div id="manual" class="hidden manual">
+      <p>Or copy the pairing code and paste it manually in the app:</p>
+      <div class="code-box" id="codeDisplay" onclick="copyCode()"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    var code = new URLSearchParams(window.location.search).get('code');
+    var statusEl = document.getElementById('status');
+    var actionsEl = document.getElementById('actions');
+    var manualEl = document.getElementById('manual');
+    var appLinkEl = document.getElementById('appLink');
+    var codeDisplayEl = document.getElementById('codeDisplay');
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(function() { t.classList.remove('show'); }, 2000);
+    }
+
+    function copyCode() {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(function() { showToast('Code copied!'); });
+      } else {
+        var ta = document.createElement('textarea'); ta.value = code;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        showToast('Code copied!');
+      }
+    }
+
+    if (!code) {
+      statusEl.className = 'status status--error';
+      statusEl.innerHTML = '❌ No pairing code provided.<br>Ask your admin to generate a new pairing link.';
+    } else {
+      // Quick server-side validation (just check code format, don't redeem yet)
+      // The actual redemption happens in the Android app
+      if (code.length < 10) {
+        statusEl.className = 'status status--error';
+        statusEl.innerHTML = '❌ Invalid pairing code format.';
+      } else {
+        statusEl.className = 'status status--success';
+        statusEl.innerHTML = '✅ Pairing code is ready. Open in the SMS Gateway app to complete pairing.';
+
+        // Build deep link — the app will intercept this URL
+        var deepLink = 'intent://pair?code=' + encodeURIComponent(code) +
+          '#Intent;scheme=getouch-sms;package=co.getouch.smsgateway;end';
+        var httpsLink = window.location.origin + '/pair?code=' + encodeURIComponent(code);
+
+        appLinkEl.href = deepLink;
+        codeDisplayEl.textContent = code;
+        actionsEl.classList.remove('hidden');
+        manualEl.classList.remove('hidden');
+
+        // Auto-try opening the app via intent scheme after a short delay
+        setTimeout(function() {
+          // Try Android intent first, then fall back to showing manual instructions
+          var iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = 'getouch-sms://pair?code=' + encodeURIComponent(code);
+          document.body.appendChild(iframe);
+          setTimeout(function() { document.body.removeChild(iframe); }, 2000);
+        }, 500);
+      }
+    }
+  </script>
+</body>
+</html>

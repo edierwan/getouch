@@ -778,6 +778,91 @@ async function initSmsSchema() {
   } catch (err) {
     console.error('[sms-db] Migration 006 error (may already exist):', err.message);
   }
+
+  // Migration 007 — One-time pairing codes
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const sql007 = fs.readFileSync(
+      path.join(__dirname, '..', 'migrations', '007_pair_codes.sql'), 'utf8'
+    );
+    await smsPool.query(sql007);
+    console.log('[sms-db] Migration 007 (pair codes) applied');
+  } catch (err) {
+    console.error('[sms-db] Migration 007 error (may already exist):', err.message);
+  }
+}
+
+/* ── DB Debug Info (admin only) ────────────────────────── */
+
+/* ── Pair Codes ─────────────────────────────────────────── */
+
+/**
+ * Create a one-time pairing code for a device.
+ * Returns the raw code (shown once) and the persisted record.
+ * Code is 24-char URL-safe random string. Only SHA-256 hash is stored.
+ */
+async function createPairCode(deviceId, createdBy, ttlMinutes = 30) {
+  const rawCode = crypto.randomBytes(18).toString('base64url'); // 24 chars
+  const codeHash = hashToken(rawCode);
+  const codePrefix = rawCode.substring(0, 6);
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+  const res = await smsQuery(
+    `INSERT INTO sms_pair_codes (code_hash, code_prefix, device_id, created_by, expires_at)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, code_prefix, device_id, created_by, expires_at, created_at`,
+    [codeHash, codePrefix, deviceId, createdBy, expiresAt]
+  );
+  return { pairCode: res.rows[0], rawCode };
+}
+
+/**
+ * Redeem a pairing code. Returns the device_token if valid,
+ * marks code as used, and prevents re-use.
+ */
+async function redeemPairCode(rawCode, ip) {
+  const codeHash = hashToken(rawCode);
+
+  // Atomic: find valid code + mark used in one statement
+  const codeRes = await smsQuery(
+    `UPDATE sms_pair_codes
+     SET used_at = NOW(), used_by_ip = $2
+     WHERE code_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+     RETURNING id, device_id`,
+    [codeHash, ip || null]
+  );
+
+  if (!codeRes.rows[0]) return null; // expired, already used, or not found
+
+  const { device_id } = codeRes.rows[0];
+
+  // Fetch device with tenant info
+  const devRes = await smsQuery(
+    `SELECT d.id, d.name, d.device_token, d.phone_number, d.status, d.is_enabled,
+            t.id as tenant_id, t.name as tenant_name
+     FROM sms_devices d
+     LEFT JOIN sms_tenants t ON t.id = d.tenant_id
+     WHERE d.id = $1`,
+    [device_id]
+  );
+
+  return devRes.rows[0] || null;
+}
+
+/**
+ * List active (unused, non-expired) pair codes for a device.
+ */
+async function listPairCodes(deviceId) {
+  const res = await smsQuery(
+    `SELECT id, code_prefix, device_id, created_by, expires_at, used_at, created_at
+     FROM sms_pair_codes
+     WHERE device_id = $1
+     ORDER BY created_at DESC
+     LIMIT 20`,
+    [deviceId]
+  );
+  return res.rows;
 }
 
 /* ── DB Debug Info (admin only) ────────────────────────── */
@@ -861,4 +946,8 @@ module.exports = {
   getHealthMetrics,
   updateWorkerHealth,
   markWorkerStopped,
+  // Pair Codes
+  createPairCode,
+  redeemPairCode,
+  listPairCodes,
 };

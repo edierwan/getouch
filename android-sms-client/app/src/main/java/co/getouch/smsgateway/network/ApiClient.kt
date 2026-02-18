@@ -45,6 +45,23 @@ class ApiClient(private val prefs: SecurePrefs) {
     }
 
     /**
+     * Redeem a one-time pairing code → returns device_token + device info.
+     * The code is exchanged server-side so the token never appears in a URL.
+     */
+    suspend fun redeemCode(serverUrl: String, code: String, deviceInfo: Map<String, String>? = null): ApiResult<RedeemCodeResponse> {
+        val bodyMap = mutableMapOf<String, Any>("code" to code)
+        deviceInfo?.let { bodyMap["device_info"] = it }
+        val body = gson.toJson(bodyMap)
+        val request = Request.Builder()
+            .url("$serverUrl/v1/sms/internal/android/redeem-code")
+            .post(body.toRequestBody(jsonType))
+            .header("Content-Type", "application/json")
+            .build()
+
+        return execute(request)
+    }
+
+    /**
      * Send heartbeat with device status
      */
     suspend fun heartbeat(
@@ -217,6 +234,16 @@ sealed class ApiResult<out T> {
 
 data class PairResponse(
     val ok: Boolean,
+    val device_id: String,
+    val device_name: String,
+    val tenant_name: String,
+    val server_time: Long,
+    val poll_interval_seconds: Int = 10
+)
+
+data class RedeemCodeResponse(
+    val ok: Boolean,
+    val device_token: String,
     val device_id: String,
     val device_name: String,
     val tenant_name: String,

@@ -68,6 +68,7 @@ function reloadPages() {
   pages.waAdmin    = loadPage('wa-admin.html');
   pages.tryBot     = loadPage('try-bot.html');
   pages.tryWhatsapp = loadPage('try-whatsapp.html');
+  pages.pair       = loadPage('pair.html');
 }
 reloadPages();
 
@@ -211,6 +212,12 @@ app.get('/try/bot', (_req, res) => {
 app.get('/try/whatsapp', (_req, res) => {
   if (isDev) reloadPages();
   res.type('html').send(pages.tryWhatsapp);
+});
+
+/* Device pairing landing page (public — code is validated client-side) */
+app.get('/pair', (_req, res) => {
+  if (isDev) reloadPages();
+  res.type('html').send(pages.pair);
 });
 
 app.get('/admin', (_req, res) => res.redirect(301, '/admin/'));

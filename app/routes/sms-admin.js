@@ -66,6 +66,8 @@ const {
   smsQuery,
   genRequestId,
   getDbDebugInfo,
+  createPairCode,
+  listPairCodes,
 } = require('../lib/sms-db');
 
 const router = Router();
@@ -572,6 +574,60 @@ router.post('/webhooks/:id/rotate', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to rotate webhook secret' });
+  }
+});
+
+/* ━━━ Pair Codes ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/**
+ * POST /v1/admin/sms/devices/:id/pair-code — Mint a one-time pairing code
+ * Body: { ttl_minutes? } (default 30 min)
+ * Returns the raw code (shown once) and a pairing URL.
+ */
+router.post('/devices/:id/pair-code', async (req, res) => {
+  const { ttl_minutes } = req.body || {};
+  try {
+    const device = await getDevice(req.params.id);
+    if (!device) return res.status(404).json({ error: 'Device not found' });
+    if (!device.is_enabled) return res.status(403).json({ error: 'Device is disabled' });
+
+    const ttl = Math.min(Math.max(parseInt(ttl_minutes) || 30, 5), 1440); // 5 min – 24 hr
+    const actor = getAdminActor(req);
+    const { pairCode, rawCode } = await createPairCode(device.id, actor, ttl);
+
+    const pairUrl = `${req.protocol}://${req.get('host')}/pair?code=${rawCode}`;
+
+    await auditLog({
+      tenantId: device.tenant_id,
+      actor,
+      action: 'device.pair_code_created',
+      resource: 'sms_pair_codes',
+      resourceId: pairCode.id,
+      details: { device_id: device.id, device_name: device.name, ttl_minutes: ttl },
+      ipAddress: getIp(req),
+    });
+
+    res.json({
+      pair_code: pairCode,
+      code: rawCode,
+      pair_url: pairUrl,
+      warning: 'This code is shown only once and expires in ' + ttl + ' minutes.',
+    });
+  } catch (err) {
+    console.error('[sms-admin] pair-code error:', err.message);
+    res.status(500).json({ error: 'Failed to create pairing code' });
+  }
+});
+
+/**
+ * GET /v1/admin/sms/devices/:id/pair-codes — List pair codes for device
+ */
+router.get('/devices/:id/pair-codes', async (req, res) => {
+  try {
+    const codes = await listPairCodes(req.params.id);
+    res.json({ codes });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to list pair codes' });
   }
 });
 

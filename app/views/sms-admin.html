@@ -521,6 +521,7 @@
             '<td>'+(dev.is_shared_pool?'<span class="sms-badge sms-badge--active">Shared</span>':'—')+'</td>'+
             '<td>'+fmtAgo(dev.last_seen_at)+'</td>'+
             '<td style="white-space:nowrap">'+
+              '<button class="sms-btn sms-btn--sm" onclick="genPairLink(\''+dev.id+'\',\''+esc(dev.name)+'\')">📱 Pair</button> '+
               '<button class="sms-btn sms-btn--sm" onclick="viewDeviceEvents(\''+dev.id+'\')">Events</button> '+
               '<button class="sms-btn sms-btn--sm" onclick="rotateDevToken(\''+dev.id+'\')">Rotate</button> '+
               (dev.is_enabled?
@@ -640,6 +641,59 @@
           '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal();loadDevices();">Done</button></div>'
         );
       });
+    };
+
+    /* ── Pair Link (one-time code) ────────────────────── */
+    window.genPairLink=function(deviceId,deviceName){
+      showModal(
+        '<div class="sms-modal__title">📱 Generate Pairing Link</div>'+
+        '<p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px">Create a one-time link for <strong>'+esc(deviceName)+'</strong>. The link expires after the chosen time and can only be used once.</p>'+
+        '<div class="sms-form-row"><div class="sms-form-group"><label>Expires in</label><select id="m-pl-ttl"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="1440">24 hours</option></select></div></div>'+
+        '<div id="m-pl-error" style="display:none;padding:8px;background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--radius-sm);color:var(--red);font-size:.78rem;margin-top:8px"></div>'+
+        '<div class="sms-modal__footer"><button class="sms-btn" onclick="closeModal()">Cancel</button><button class="sms-btn sms-btn--primary" id="m-pl-submit" onclick="mintPairCode(\''+deviceId+'\')">Generate</button></div>'
+      );
+    };
+
+    window.mintPairCode=function(deviceId){
+      var ttl=parseInt(document.getElementById('m-pl-ttl').value)||30;
+      var btn=document.getElementById('m-pl-submit');
+      btn.disabled=true;btn.textContent='Generating…';
+
+      apiCall('POST','/devices/'+deviceId+'/pair-code',{ttl_minutes:ttl}).then(function(d){
+        btn.disabled=false;btn.textContent='Generate';
+        if(d.error){
+          var errEl=document.getElementById('m-pl-error');
+          errEl.textContent=d.error;errEl.style.display='block';
+          return;
+        }
+        var pairUrl=d.pair_url;
+        var code=d.code;
+
+        /* Build QR using public Google Charts API (lightweight, no deps) */
+        var qrImg='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(pairUrl);
+
+        showModal(
+          '<div class="sms-modal__title">📱 Pairing Link Ready</div>'+
+          '<p style="font-size:.85rem;color:var(--text-muted);margin-bottom:12px">Scan the QR code with the Android phone, or copy the link and open it on the device.</p>'+
+          '<div style="text-align:center;margin-bottom:16px"><img src="'+qrImg+'" alt="QR Code" style="width:200px;height:200px;border-radius:8px;border:1px solid var(--border-subtle)"></div>'+
+          '<div class="sms-secret-box"><div class="sms-secret-box__label">Pairing URL (expires in '+ttl+' min, single-use)</div><div class="sms-secret-box__value" id="m-pl-url" style="font-size:.75rem;word-break:break-all">'+esc(pairUrl)+'</div></div>'+
+          '<div style="margin-top:8px;display:flex;gap:8px">'+
+            '<button class="sms-btn sms-btn--sm sms-btn--primary" onclick="copyPairUrl()">📋 Copy Link</button>'+
+            '<button class="sms-btn sms-btn--sm" onclick="copyPairCode()">🔑 Copy Code Only</button>'+
+          '</div>'+
+          '<div class="sms-modal__footer"><button class="sms-btn sms-btn--primary" onclick="closeModal()">Done</button></div>'
+        );
+
+        window._pairUrl=pairUrl;
+        window._pairCode=code;
+      });
+    };
+
+    window.copyPairUrl=function(){
+      if(navigator.clipboard){navigator.clipboard.writeText(window._pairUrl).then(function(){toast('Pairing URL copied','ok');});}
+    };
+    window.copyPairCode=function(){
+      if(navigator.clipboard){navigator.clipboard.writeText(window._pairCode).then(function(){toast('Pairing code copied','ok');});}
     };
 
     window.viewDeviceEvents=function(id){
