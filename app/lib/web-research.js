@@ -18,10 +18,21 @@ const BROWSE_KEYWORDS = [
   'release', 'availability', 'stock', 'near me', 'cuaca', 'weather',
   'terkini', 'semasa', 'current', 'update', 'baru',
   'berapa', 'how much', 'where to buy', 'review',
+  'gpu', 'vram', 'ram', 'laptop', 'phone', 'shopee', 'lazada',
+  'spec', 'model', 'compare', 'banding',
 ];
 
 const FORCE_BROWSE   = ['cari web', 'search web', 'browse web', 'web search'];
 const NO_BROWSE      = ['tanpa browse', 'no web', 'no browse', 'jangan cari web', 'offline'];
+
+// Meta/complaint messages that should NOT trigger web research
+const META_PATTERNS = [
+  /\b(suruh|ask|tell).*\b(cari|search|find|check)/i,
+  /\b(kenapa|why|don'?t).*\b(you|kau|awak)/i,
+  /\b(still|masih|lagi).*\b(sama|same|suruh)/i,
+  /\b(bukan|not|wrong|salah).*\b(tu|that|ini|this)/i,
+  /\b(tak guna|useless|bodoh|stupid)/i,
+];
 
 /**
  * Determine whether a user message should trigger web research.
@@ -46,6 +57,13 @@ function shouldBrowseWeb(userMessage) {
   for (const phrase of FORCE_BROWSE) {
     if (lower.includes(phrase)) {
       return { shouldBrowse: true, reason: 'user_forced' };
+    }
+  }
+
+  // Meta/complaint messages should NOT trigger web search
+  for (const rx of META_PATTERNS) {
+    if (rx.test(lower)) {
+      return { shouldBrowse: false, reason: 'meta_complaint' };
     }
   }
 
@@ -624,8 +642,9 @@ PERATURAN:
 - Jangan kata "tiada maklumat" jika sumber ada data — cari lebih teliti.
 - Jika sumber berbeza, nyatakan julat (cth "RM 2,000 – RM 7,000").
 - Jangan reka data. Jika bagi anggaran, nyatakan ia anggaran.
-- JANGAN sekali-kali suruh pengguna "buka laman web" atau "search sendiri" — itu kerja kamu.
-- Guna gaya santai jika pengguna bercakap santai.
+- DILARANG KERAS: Jangan sekali-kali suruh pengguna "buka laman web", "search sendiri", "layari Shopee", "check di Google", atau apa-apa arahan cari sendiri. Itu kerja KAMU.
+- DILARANG: Jangan beri langkah-langkah "Cara mencari harga" atau tutorial carian. Pengguna nak JAWAPAN.
+- Guna gaya santai jika pengguna bercakap santai. Guna "awak" bukan "Anda", "tak" bukan "tidak".
 
 PENGLIBATAN: Akhiri jawapan dengan soalan susulan yang relevan untuk bantu pengguna buat pilihan.
 Contoh: "Nak saya carikan pilihan dalam bajet tertentu?" / "Ada model tertentu yang awak minat?"`
@@ -800,12 +819,36 @@ async function performWebResearch(userMessage) {
     // Step 4: Fetch & extract
     const fetched = await fetchAll(fetchUrls, timeoutSec);
     console.log('[web-research] Fetched:', fetched.length, 'of', fetchUrls.length, 'pages');
-    if (fetched.length === 0) {
-      console.log('[web-research] All page fetches failed — returning null');
-      return null;
-    }
 
-    const finalSources = fetched.slice(0, maxSources);
+    // Step 4b: If page fetches returned too few, create sources from search snippets
+    // (e-commerce SPAs like Shopee return empty HTML, but snippets have useful data)
+    let finalSources;
+    if (fetched.length === 0 || fetched.every(s => s.text.length < 100)) {
+      console.log('[web-research] Page content weak/empty — using search snippets as sources');
+      finalSources = searchResults.slice(0, maxSources)
+        .filter(r => r.snippet && r.snippet.length > 10)
+        .map(r => ({
+          url: r.url,
+          title: r.title,
+          text: `${r.title}. ${r.snippet}`,
+        }));
+      if (finalSources.length === 0) {
+        console.log('[web-research] No usable snippets either — returning null');
+        return null;
+      }
+    } else {
+      // Filter out fetched pages with very little content (SPA shells)
+      const usable = fetched.filter(s => s.text.length >= 100);
+      if (usable.length === 0) {
+        // All fetched pages were SPA shells — fall back to snippets
+        console.log('[web-research] All fetched pages are SPA shells — using snippets');
+        finalSources = searchResults.slice(0, maxSources)
+          .filter(r => r.snippet && r.snippet.length > 10)
+          .map(r => ({ url: r.url, title: r.title, text: `${r.title}. ${r.snippet}` }));
+      } else {
+        finalSources = usable.slice(0, maxSources);
+      }
+    }
 
     // Step 5: Cache results
     await cacheSet(searchQuery, fetchUrls, finalSources, cacheTtl);

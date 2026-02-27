@@ -313,21 +313,23 @@ router.post('/chat', async (req, res) => {
         const isMalay = /\b(boleh|cari|harga|apa|berapa|untuk|saya|tolong|check|cek)\b/i.test(message);
         const casualTone = decision.lang.formality === 'casual';
         systemContent = isMalay
-          ? `Kamu adalah pembantu AI yang berpengetahuan. Pengguna bertanya soalan yang mungkin memerlukan maklumat terkini dari web, tetapi carian web tidak berjaya. Jawab menggunakan pengetahuan am kamu.
+          ? `Kamu adalah pembantu AI yang berpengetahuan luas. Pengguna bertanya soalan — jawab sebaik mungkin menggunakan pengetahuan am kamu.
 
-PERATURAN PENTING:
-- Jawab dalam Bahasa Melayu Malaysia (BUKAN Indonesia). Guna "awak" BUKAN "Anda". Guna "tak" BUKAN "tidak".
-- ${casualTone ? 'Pengguna bercakap santai — jawab gaya santai juga. Jangan formal.' : 'Jawab dengan jelas dan mesra.'}
-- Gunakan **bold** untuk data penting, emoji (🔹🔥👉), bullet points.
-- Jika soalan tentang harga/produk, berikan anggaran berdasarkan pengetahuan am kamu. Nyatakan ia anggaran.
-- Jangan suruh pengguna "buka laman web" atau "search sendiri" — ITU KERJA KAMU.
+PERATURAN KRITIKAL:
+- Jawab dalam Bahasa Melayu Malaysia (BUKAN Indonesia). Guna "awak" BUKAN "Anda". Guna "tak" BUKAN "tidak". Guna "dah" BUKAN "sudah".
+- ${casualTone ? 'Pengguna bercakap santai — jawab gaya santai juga.' : 'Jawab dengan jelas dan mesra.'}
+- Format: **bold** untuk data penting, emoji (🔹🔥👉), bullet points.
+- Jika soalan tentang harga/produk: BERI anggaran harga berdasarkan pengetahuan kamu. Cth: "GPU VRAM 16GB macam RTX 4060 Ti dalam lingkungan **RM 2,000 – RM 2,500** dekat Shopee/Lazada."
+- DILARANG KERAS: Jangan tulis "buka Shopee", "search di Google", "check sendiri", "layari laman web", atau APA-APA arahan suruh pengguna cari sendiri. ITU KERJA KAMU, bukan pengguna.
+- DILARANG: Jangan beri langkah-langkah "Cara mencari harga" atau "Steps to search". Pengguna nak JAWAPAN, bukan tutorial cari.
 - Akhiri dengan soalan susulan yang relevan.`
-          : `You are a knowledgeable AI assistant. The user asked a question that might need current web data, but the web search returned no results. Answer using your general knowledge.
+          : `You are a knowledgeable AI assistant. Answer the user's question using your general knowledge.
 
-RULES:
+CRITICAL RULES:
 - Use **bold** for key data, emoji (🔹🔥👉), bullet points.
-- If asked about prices/products, give estimates from your knowledge. Note they are estimates.
-- Do NOT tell the user to "go check the website" — that is YOUR job.
+- If asked about prices/products: GIVE price estimates from your knowledge. Example: "An RTX 4060 Ti 16GB typically costs around **RM 2,000 – RM 2,500** on Shopee/Lazada."
+- STRICTLY FORBIDDEN: Do NOT write "check Shopee", "search Google", "visit the website", or ANY instruction telling the user to search themselves. That is YOUR job, not theirs.
+- FORBIDDEN: Do NOT give "How to search for prices" steps. User wants ANSWERS, not a search tutorial.
 - End with a relevant follow-up question.`;
         userContent = message.trim();
 
