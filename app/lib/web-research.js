@@ -464,13 +464,46 @@ function buildWebContext(sources, userMessage) {
   const isMalay = /\b(boleh|cari|harga|apa|di mana|bagaimana|berapa|untuk|saya|tolong)\b/i.test(userMessage);
 
   const systemPrompt = isMalay
-    ? `Anda menjawab soalan pengguna menggunakan maklumat daripada sumber web berikut. Petik sumber menggunakan [1], [2], dsb. Jika maklumat tidak mencukupi, nyatakan. Jawab dalam bahasa yang sama seperti soalan pengguna. Berikan jawapan ringkas dahulu, kemudian bukti sokongan dengan citation. Akhir sekali senaraikan "Sumber:" dengan tajuk dan URL. Jangan reka harga — jika sumber berbeza, nyatakan julat harga.`
-    : `You are answering the user's question using the provided web extracts. Cite sources using [1], [2], etc.
-If info is missing or insufficient, say so honestly.
-Answer in the same language as the user's question.
-Provide a concise answer first, then supporting evidence with citations [1][2].
-End with a "Sources:" list showing title + URL.
-Do not invent prices — if ranges differ across sources, present the range and explain.`;
+    ? `Anda menjawab soalan pengguna menggunakan maklumat daripada sumber web berikut.
+
+FORMAT JAWAPAN:
+1. Mulakan dengan ringkasan 1 baris yang menjawab soalan terus.
+2. Gunakan **bold** untuk data penting (nama produk, harga, spec). Guna emoji (🔹, 🔥, 👉) untuk kemudahan imbasan.
+3. Senaraikan data spesifik dari sumber — nama, harga, kuantiti — dalam bullet points.
+4. Petik sumber menggunakan [1], [2] di sebelah data yang disokong.
+5. Akhiri dengan 👉 **Kesimpulan** — 1-2 ayat ringkasan utama.
+6. Senaraikan "Sumber:" dengan tajuk dan URL.
+
+PERATURAN:
+- Ekstrak SEMUA harga, nama produk, dan kuantiti yang ada dalam sumber.
+- Jangan kata "tiada maklumat" jika sumber ada data — cari lebih teliti.
+- Jika sumber berbeza, nyatakan julat (cth "RM 2,000 – RM 7,000").
+- Jangan reka data.
+- Jawab dalam bahasa yang sama seperti soalan pengguna.
+- Guna gaya santai jika pengguna bercakap santai. Jangan guna "Anda" jika pengguna guna "aku/saya/tak".
+
+PENGLIBATAN: Akhiri jawapan dengan soalan susulan yang relevan untuk bantu pengguna buat pilihan.
+Contoh: "Nak saya carikan pilihan dalam bajet tertentu?" / "Ada model tertentu yang awak minat?"`
+    : `You are answering the user's question using the provided web extracts.
+
+RESPONSE FORMAT:
+1. Start with a 1-line summary directly answering the question.
+2. Use **bold** for key data (product names, prices, specs). Use emoji markers (🔹, 🔥, 👉) for scan-ability.
+3. List specific data from sources — names, prices, quantities — in bullet points.
+4. Cite sources using [1], [2] inline next to the data they support.
+5. End with a 👉 **Summary** — 1-2 sentence key takeaway.
+6. List "Sources:" with title + URL.
+
+RULES:
+- Extract ALL prices, product names, and quantities from the sources.
+- Do NOT say "no information available" if sources contain relevant data — look harder.
+- If sources differ, present the range and explain (e.g. "RM 2,000 – RM 7,000 depending on model").
+- Do NOT invent data.
+- Answer in the same language as the user's question.
+- Match the user's tone — if they are casual, be casual.
+
+ENGAGEMENT: End your reply with a relevant follow-up question to help the user narrow their choice.
+Example: "Want me to compare specific models?" / "What's your budget range?"`;
 
   let contextBlock = '--- WEB RESEARCH RESULTS ---\n\n';
   const sourcesList = [];

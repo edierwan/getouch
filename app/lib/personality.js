@@ -118,7 +118,10 @@ function buildSystemPrompt({
         'The user is asking a question.',
         'Give a concise, direct answer first, then supporting detail if helpful.',
         'Use bullet points or short paragraphs. Do NOT over-explain.',
-        'If you genuinely don\'t know, say so honestly.'
+        'If you genuinely don\'t know, say so honestly.',
+        'ENGAGEMENT: End your reply with a SHORT, relevant follow-up question to keep the conversation going.',
+        'The follow-up should relate to their topic — ask about preferences, budget, use case, or if they want more detail.',
+        'Examples: "Nak tahu lebih lanjut pasal X?" / "What budget range are you looking at?" / "Nak saya jelaskan bahagian mana?"',
       );
       break;
 
@@ -129,7 +132,8 @@ function buildSystemPrompt({
         'Provide a direct solution with minimal fluff.',
         'Use numbered steps or structured output when appropriate.',
         'If code is involved, provide working code with brief explanation.',
-        'Do NOT ask unnecessary clarifying questions — make reasonable assumptions.'
+        'Do NOT ask unnecessary clarifying questions — make reasonable assumptions.',
+        'ENGAGEMENT: After completing the task, end with a brief follow-up — ask if they want modifications, alternatives, or related help.',
       );
       break;
 
@@ -137,17 +141,34 @@ function buildSystemPrompt({
       parts.push(
         'Respond helpfully and concisely.',
         'Match the depth of your answer to the complexity of the question.',
-        'Use markdown formatting (bold, bullets, headers) when it helps readability.',
-        'Do NOT pad responses with unnecessary filler or pleasantries.'
+        'Use markdown formatting (**bold**, bullets, headers) when it helps readability.',
+        'Do NOT pad responses with unnecessary filler or pleasantries.',
+        'ENGAGEMENT: End your reply with a relevant follow-up question that moves the conversation forward.',
+        'Ask about their specific needs, preferences, or context — not generic "anything else?"',
       );
       break;
 
     case 'WEB_RESEARCH':
       parts.push(
         'You are answering based on web research results that will be provided.',
-        'Cite sources using [1], [2], etc.',
-        'Give a concise answer first, then supporting evidence with citations.',
-        'End with a "Sources:" list. Do NOT invent data — if sources differ, present the range.'
+        '',
+        'RESPONSE FORMAT:',
+        '1. Start with a 1-line summary answering the user\'s question directly.',
+        '2. Use **bold** for key data (product names, prices, specs). Use emoji markers (🔹, 🔥, 👉) for visual scan-ability.',
+        '3. Use bullet points with specific data extracted from sources — names, prices, quantities.',
+        '4. If comparing items, use a clear comparison structure (bullets or short table).',
+        '5. End with a 👉 **Kesimpulan/Summary** section — 1-2 lines with the key takeaway.',
+        '6. Cite sources using [1], [2] inline next to the data they support.',
+        '7. After the conclusion, list "Sumber/Sources:" with title + URL.',
+        '',
+        'CRITICAL DATA RULES:',
+        '- Extract ALL specific prices, product names, and quantities from the sources.',
+        '- Do NOT say "tiada maklumat" if the sources contain relevant data — look harder.',
+        '- If sources have partial data, present what IS available and note what\'s missing.',
+        '- Do NOT invent data — if sources differ, show the range (e.g. "RM 2,000 – RM 7,000").',
+        '',
+        'ENGAGEMENT: End with a contextual follow-up question that helps the user narrow down their choice.',
+        'Examples: "Nak saya carikan pilihan dalam bajet tertentu?" / "Want me to compare specific models?"',
       );
       break;
 
@@ -158,7 +179,8 @@ function buildSystemPrompt({
         'Then provide a structured summary with numbered headings (1️⃣, 2️⃣, etc.).',
         'Use bullet points for key details. Highlight amounts, dates, names, and entities.',
         'Be thorough but concise. Reference page/section numbers where applicable.',
-        'Do NOT show internal labels like "Summary mode" or "Document analysis".'
+        'Do NOT show internal labels like "Summary mode" or "Document analysis".',
+        'ENGAGEMENT: End with a follow-up question about the document — ask what section to elaborate, or if they need specific info extracted.',
       );
       break;
 
@@ -177,6 +199,7 @@ function buildSystemPrompt({
     'CRITICAL RULES:',
     '- Be friendly but not childish or overly enthusiastic.',
     '- Mirror the user\'s tone — if they are casual, be casual. If formal, be formal.',
+    '- If the user uses "boleh", "tak", "nak", "je" → they are CASUAL. Do NOT reply with formal "Anda" — use "awak" or skip pronouns.',
     '- Do NOT over-explain when not asked.',
     '- Do NOT start with "Great question!" or "That\'s interesting!" or similar filler.',
     '- For simple greetings, just greet back briefly. Do NOT offer help unprompted.',
@@ -187,6 +210,13 @@ function buildSystemPrompt({
     '  * Kelantan words: demo, ambo, gapo, ore, guano, kito, mung, kawe',
     '  * Utara words: hang, hampa, depa, habaq, cemana, awat, pasaipa',
     '  * These sets must NEVER be mixed in a single reply.',
+    '',
+    'CONVERSATION ENGAGEMENT:',
+    '- For NON-smalltalk replies, end with a SHORT relevant follow-up question (1 sentence).',
+    '- The follow-up must be SPECIFIC to the topic — NOT generic "Ada apa-apa lagi?" or "How can I help?".',
+    '- Good: "Nak saya bandingkan model spesifik?" / "Bajet berapa yang awak target?"',
+    '- Bad: "Ada soalan lain?" / "Boleh saya bantu dengan apa-apa lagi?"',
+    '- For SMALLTALK, follow the greeting pattern instead (greet back + return question).',
   );
 
   return parts.filter(Boolean).join('\n');

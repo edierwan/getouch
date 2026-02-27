@@ -263,9 +263,19 @@ router.post('/chat', async (req, res) => {
       webResearchResult = await performWebResearch(message);
 
       if (webResearchResult && webResearchResult.sources.length > 0) {
-        const webLangHint = decision.lang.language === 'ms'
-          ? '\nJawab dalam Bahasa Melayu.' + (decision.lang.dialect === 'UTARA' ? ' Gunakan gaya santai.' : '')
-          : '';
+        // Build language/tone hint from router's dialect detection
+        let webLangHint = '';
+        if (decision.lang.language === 'ms') {
+          webLangHint = '\nJawab dalam Bahasa Melayu.';
+          if (decision.lang.formality === 'casual') {
+            webLangHint += ' Guna gaya santai — jangan guna "Anda", guna "awak" atau ikut gaya pengguna.';
+          }
+          if (decision.lang.dialect === 'UTARA') {
+            webLangHint += ' Pengguna guna loghat Utara — boleh selitkan 1-2 perkataan Utara (hang, ja, dak).';
+          } else if (decision.lang.dialect === 'KELANTAN') {
+            webLangHint += ' Pengguna guna loghat Kelantan — boleh selitkan 1-2 perkataan Klate (demo, gapo, ore).';
+          }
+        }
         systemContent = webResearchResult.systemPrompt + webLangHint;
         userContent = webResearchResult.contextBlock + '\n\nUSER QUESTION:\n' + message.trim();
 
