@@ -308,10 +308,39 @@ router.post('/chat', async (req, res) => {
           },
         });
       } else {
+        // Web research returned no usable sources — use LLM knowledge with enhanced prompt
+        console.log('[chat] Web research returned no sources — using knowledge fallback');
+        const isMalay = /\b(boleh|cari|harga|apa|berapa|untuk|saya|tolong|check|cek)\b/i.test(message);
+        const casualTone = decision.lang.formality === 'casual';
+        systemContent = isMalay
+          ? `Kamu adalah pembantu AI yang berpengetahuan. Pengguna bertanya soalan yang mungkin memerlukan maklumat terkini dari web, tetapi carian web tidak berjaya. Jawab menggunakan pengetahuan am kamu.
+
+PERATURAN PENTING:
+- Jawab dalam Bahasa Melayu Malaysia (BUKAN Indonesia). Guna "awak" BUKAN "Anda". Guna "tak" BUKAN "tidak".
+- ${casualTone ? 'Pengguna bercakap santai — jawab gaya santai juga. Jangan formal.' : 'Jawab dengan jelas dan mesra.'}
+- Gunakan **bold** untuk data penting, emoji (🔹🔥👉), bullet points.
+- Jika soalan tentang harga/produk, berikan anggaran berdasarkan pengetahuan am kamu. Nyatakan ia anggaran.
+- Jangan suruh pengguna "buka laman web" atau "search sendiri" — ITU KERJA KAMU.
+- Akhiri dengan soalan susulan yang relevan.`
+          : `You are a knowledgeable AI assistant. The user asked a question that might need current web data, but the web search returned no results. Answer using your general knowledge.
+
+RULES:
+- Use **bold** for key data, emoji (🔹🔥👉), bullet points.
+- If asked about prices/products, give estimates from your knowledge. Note they are estimates.
+- Do NOT tell the user to "go check the website" — that is YOUR job.
+- End with a relevant follow-up question.`;
+        userContent = message.trim();
+
         res.write(`event: status\ndata: ${JSON.stringify({ status: 'browse_fallback', reason: 'no_sources' })}\n\n`);
       }
     } catch (webErr) {
       console.error('[chat] Web research error:', webErr.message);
+      // Even on error, provide a knowledge-based response
+      const isMalay = /\b(boleh|cari|harga|apa|berapa|untuk|saya|tolong|check|cek)\b/i.test(message);
+      systemContent = isMalay
+        ? `Kamu adalah pembantu AI yang berpengetahuan. Carian web gagal, tetapi jawab soalan pengguna menggunakan pengetahuan am kamu. Jawab dalam Bahasa Melayu Malaysia (bukan Indonesia). Guna "awak" bukan "Anda". Gunakan **bold**, emoji, bullet points. Jangan suruh pengguna search sendiri. Akhiri dengan soalan susulan.`
+        : `You are a knowledgeable AI assistant. Web search failed, but answer the user's question using your general knowledge. Use **bold**, emoji, bullet points. Do NOT tell the user to search themselves. End with a follow-up question.`;
+      userContent = message.trim();
     }
   } else {
     // ── Text chat with personality-aware routing ──

@@ -75,8 +75,8 @@ const FILLER_WORDS = new Set([
   'tak', 'tak?', 'gak', 'ke', 'ka', 'kah', 'la', 'lah', 'je', 'jer',
   'ni', 'tu', 'yang', 'kan', 'eh', 'ye', 'ya', 'ok', 'okay',
   'please', 'can', 'you', 'i', 'me', 'the', 'a', 'is', 'it',
-  'ada', 'dekat', 'kat', 'dalam', 'dgn', 'dengan', 'utk', 'untuk',
-  'di', 'ke', 'dari', 'pada',
+  'ada', 'dekat', 'deakt', 'dkat', 'dekt', 'kat', 'dalam', 'dgn', 'dengan', 'utk', 'untuk',
+  'di', 'dari', 'pada',
 ]);
 
 // Platform/site hints — map keywords to site search syntax
@@ -603,7 +603,12 @@ function buildWebContext(sources, userMessage) {
     : '';
 
   const systemPrompt = isMalay
-    ? `Anda menjawab soalan pengguna menggunakan maklumat daripada sumber web berikut.
+    ? `Kamu menjawab soalan pengguna menggunakan maklumat daripada sumber web berikut.
+
+BAHASA: Jawab dalam Bahasa Melayu MALAYSIA. Bukan Bahasa Indonesia.
+- Guna "awak/kamu" BUKAN "Anda". Guna "tak" BUKAN "tidak". Guna "cari" BUKAN "mencari".
+- Guna "laman web" BUKAN "situs web". Guna "telefon" BUKAN "ponsel".
+- ${sourcesWeak ? 'Sumber agak terhad — GABUNGKAN data sumber + pengetahuan am kamu.' : 'Gunakan data dari sumber.'}
 
 FORMAT JAWAPAN:
 1. Mulakan dengan ringkasan 1 baris yang menjawab soalan terus.
@@ -617,9 +622,9 @@ PERATURAN:
 - Ekstrak SEMUA harga, nama produk, dan kuantiti yang ada dalam sumber.
 - Jangan kata "tiada maklumat" jika sumber ada data — cari lebih teliti.
 - Jika sumber berbeza, nyatakan julat (cth "RM 2,000 – RM 7,000").
-- Jangan reka data.
-- Jawab dalam bahasa yang sama seperti soalan pengguna.
-- Guna gaya santai jika pengguna bercakap santai. Jangan guna "Anda" jika pengguna guna "aku/saya/tak".
+- Jangan reka data. Jika bagi anggaran, nyatakan ia anggaran.
+- JANGAN sekali-kali suruh pengguna "buka laman web" atau "search sendiri" — itu kerja kamu.
+- Guna gaya santai jika pengguna bercakap santai.
 
 PENGLIBATAN: Akhiri jawapan dengan soalan susulan yang relevan untuk bantu pengguna buat pilihan.
 Contoh: "Nak saya carikan pilihan dalam bajet tertentu?" / "Ada model tertentu yang awak minat?"`
@@ -726,25 +731,28 @@ async function performWebResearch(userMessage) {
   const reformulated = reformulateQuery(rawQuery);
   let searchQuery = reformulated.query;
 
-  // If user mentioned a specific platform, do a site-specific search first
-  const siteQuery = reformulated.siteHint
-    ? `site:${reformulated.siteHint} ${searchQuery}`
+  // If user mentioned a specific platform, add it to the query (SearxNG doesn't reliably support site: operator)
+  const siteHint = reformulated.siteHint;
+  const siteQuery = siteHint
+    ? `${searchQuery} ${siteHint}`
     : null;
 
   console.log('[web-research] Original:', userMessage);
-  console.log('[web-research] Reformulated:', searchQuery, siteQuery ? `(+ site:${reformulated.siteHint})` : '');
+  console.log('[web-research] Reformulated:', searchQuery, siteQuery ? `(+ ${siteHint})` : '');
 
   try {
-    // Step 1: Search — try site-specific first, then general
+    // Step 1: Search — try site-enhanced first, then general
     let searchResults = [];
 
     if (siteQuery) {
       searchResults = await webSearch(siteQuery, 6);
+      console.log('[web-research] Site search returned:', searchResults.length, 'results');
     }
 
     // If site search returned too few results, also do general search
     if (searchResults.length < 3) {
       const generalResults = await webSearch(searchQuery, 6);
+      console.log('[web-research] General search returned:', generalResults.length, 'results');
       // Merge, preferring site-specific results
       const seenUrls = new Set(searchResults.map(r => r.url));
       for (const r of generalResults) {
@@ -755,7 +763,13 @@ async function performWebResearch(userMessage) {
       }
     }
 
+    console.log('[web-research] Total search results:', searchResults.length);
+    if (searchResults.length > 0) {
+      console.log('[web-research] Top results:', searchResults.slice(0, 3).map(r => r.title).join(' | '));
+    }
+
     if (!searchResults || searchResults.length === 0) {
+      console.log('[web-research] No search results — returning null');
       return null;
     }
 
@@ -784,7 +798,11 @@ async function performWebResearch(userMessage) {
 
     // Step 4: Fetch & extract
     const fetched = await fetchAll(fetchUrls, timeoutSec);
-    if (fetched.length === 0) return null;
+    console.log('[web-research] Fetched:', fetched.length, 'of', fetchUrls.length, 'pages');
+    if (fetched.length === 0) {
+      console.log('[web-research] All page fetches failed — returning null');
+      return null;
+    }
 
     const finalSources = fetched.slice(0, maxSources);
 
