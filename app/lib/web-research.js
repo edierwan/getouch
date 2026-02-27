@@ -66,7 +66,93 @@ function shouldBrowseWeb(userMessage) {
 
 
 /* ════════════════════════════════════════════════════════════
-   2. SSRF & domain safety
+   2a. Query reformulation — turn casual Malay into good search queries
+   ════════════════════════════════════════════════════════════ */
+
+// Filler words to strip from search queries (Malay + English)
+const FILLER_WORDS = new Set([
+  'boleh', 'tolong', 'nak', 'saya', 'aku', 'check', 'cek', 'tengok',
+  'tak', 'tak?', 'gak', 'ke', 'ka', 'kah', 'la', 'lah', 'je', 'jer',
+  'ni', 'tu', 'yang', 'kan', 'eh', 'ye', 'ya', 'ok', 'okay',
+  'please', 'can', 'you', 'i', 'me', 'the', 'a', 'is', 'it',
+  'ada', 'dekat', 'kat', 'dalam', 'dgn', 'dengan', 'utk', 'untuk',
+  'di', 'ke', 'dari', 'pada',
+]);
+
+// Platform/site hints — map keywords to site search syntax
+const SITE_HINTS = [
+  { patterns: ['shopee', 'shope', 'shopie'], site: 'shopee.com.my' },
+  { patterns: ['lazada', 'lzd'], site: 'lazada.com.my' },
+  { patterns: ['mudah', 'mudah.my'], site: 'mudah.my' },
+  { patterns: ['amazon'], site: 'amazon.com' },
+  { patterns: ['carousell'], site: 'carousell.com.my' },
+];
+
+// Term expansion — casual/abbreviated → canonical search terms
+const TERM_EXPANSION = [
+  { from: /\bvram\s*(\d+)(?:gb|g)?\b/i, to: 'GPU graphics card $1GB VRAM' },
+  { from: /\bgpu\s*(\d+)(?:gb|g)?\b/i, to: 'GPU graphics card $1GB' },
+  { from: /\bram\s*(\d+)(?:gb|g)?\b/i, to: 'RAM $1GB' },
+  { from: /\blaptop\b/i, to: 'laptop' },
+  { from: /\bhp\b(?!\d)/i, to: 'phone handphone' },
+  { from: /\bfon\b/i, to: 'phone' },
+];
+
+/**
+ * Reformulate a casual user message into an optimized search query.
+ * @param {string} userMessage
+ * @returns {{ query: string, siteHint: string|null, original: string }}
+ */
+function reformulateQuery(userMessage) {
+  const original = userMessage;
+  let q = userMessage.toLowerCase().trim();
+
+  // 1. Detect site hint FIRST, then remove platform name from query
+  let siteHint = null;
+  for (const sh of SITE_HINTS) {
+    for (const p of sh.patterns) {
+      if (q.includes(p)) {
+        siteHint = sh.site;
+        q = q.replace(new RegExp(`\\b${p}\\b`, 'gi'), '').trim();
+        break;
+      }
+    }
+    if (siteHint) break;
+  }
+
+  // 2. Apply term expansion (vram 16 → GPU graphics card 16GB VRAM)
+  for (const exp of TERM_EXPANSION) {
+    if (exp.from.test(q)) {
+      q = q.replace(exp.from, exp.to);
+      break; // Only apply first match
+    }
+  }
+
+  // 3. Strip filler words
+  q = q.split(/\s+/).filter(w => !FILLER_WORDS.has(w.replace(/[?!.,]/g, ''))).join(' ');
+
+  // 4. Clean up extra spaces and punctuation
+  q = q.replace(/\s+/g, ' ').replace(/^[\s,.!?]+|[\s,.!?]+$/g, '').trim();
+
+  // 5. If query became too short, fall back to original minus filler
+  if (q.length < 5) q = userMessage.replace(/\b(boleh|tolong|check|cek)\b/gi, '').trim();
+
+  // 6. Add price context if user asked about price but word got stripped
+  if (/harga|price|berapa|how much/i.test(original) && !/harga|price/i.test(q)) {
+    q = 'harga ' + q;
+  }
+
+  // 7. Add "Malaysia" for price queries to localize results
+  if (/harga|price|berapa|rm\s*\d/i.test(original) && !/malaysia/i.test(q)) {
+    q += ' Malaysia';
+  }
+
+  return { query: q, siteHint, original };
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   2b. SSRF & domain safety
    ════════════════════════════════════════════════════════════ */
 
 const PRIVATE_IP_RANGES = [
@@ -260,16 +346,51 @@ async function webSearch(queryStr, limit = 6) {
    ════════════════════════════════════════════════════════════ */
 
 /**
- * Select sources: deduplicate by domain, prefer reputable, limit count.
+ * Score a search result's relevance to the query.
+ * Higher = more relevant.
+ */
+function scoreRelevance(result, queryTerms) {
+  let score = 0;
+  const haystack = `${result.title} ${result.snippet}`.toLowerCase();
+
+  for (const term of queryTerms) {
+    if (term.length < 2) continue;
+    if (haystack.includes(term)) score += 2;
+    // Partial match (e.g. "16gb" matches "16 gb")
+    const digits = term.match(/\d+/);
+    if (digits && haystack.includes(digits[0])) score += 1;
+  }
+
+  // Bonus for price indicators
+  if (/rm\s?\d|\$\d|harga|price/i.test(haystack)) score += 3;
+
+  // Bonus for reputable e-commerce / tech domains
+  try {
+    const host = new URL(result.url).hostname;
+    if (/shopee|lazada|mudah|carousell|lelong/i.test(host)) score += 2;
+    if (/lowyat|amanz|soyacincau|technave/i.test(host)) score += 2;
+  } catch {}
+
+  return score;
+}
+
+/**
+ * Select sources: deduplicate by domain, rank by relevance, limit count.
  * @param {{title: string, url: string, snippet: string}[]} results
  * @param {number} maxSources
+ * @param {string} queryStr - the search query for relevance scoring
  * @returns {string[]} urls
  */
-function selectSources(results, maxSources = 4) {
+function selectSources(results, maxSources = 4, queryStr = '') {
+  // Score and sort by relevance
+  const queryTerms = queryStr.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+  const scored = results.map(r => ({ ...r, _score: scoreRelevance(r, queryTerms) }));
+  scored.sort((a, b) => b._score - a._score);
+
   const seenDomains = new Set();
   const selected = [];
 
-  for (const r of results) {
+  for (const r of scored) {
     try {
       const hostname = new URL(r.url).hostname;
       if (seenDomains.has(hostname)) continue;
@@ -463,6 +584,24 @@ function buildWebContext(sources, userMessage) {
   // Detect if Malay
   const isMalay = /\b(boleh|cari|harga|apa|di mana|bagaimana|berapa|untuk|saya|tolong)\b/i.test(userMessage);
 
+  // Assess source quality — do sources actually contain relevant data?
+  const queryWords = userMessage.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  let totalHits = 0;
+  for (const src of sources) {
+    const hay = `${src.title} ${src.text}`.toLowerCase();
+    for (const w of queryWords) {
+      if (hay.includes(w)) totalHits++;
+    }
+  }
+  const avgRelevance = sources.length > 0 ? totalHits / (sources.length * queryWords.length) : 0;
+  const sourcesWeak = avgRelevance < 0.3;
+
+  const knowledgeFallback = sourcesWeak
+    ? (isMalay
+      ? '\n\n⚠️ SUMBER WEB TERHAD — sumber yang dijumpai mungkin tidak tepat sepenuhnya. GUNAKAN pengetahuan am kamu untuk melengkapkan jawapan. Nyatakan data mana dari sumber dan mana dari pengetahuan am. Jangan hanya kata "tiada maklumat" — bantu pengguna sebaik mungkin.'
+      : '\n\n⚠️ LIMITED WEB SOURCES — the sources found may not be fully relevant. SUPPLEMENT with your own knowledge where needed. Clearly indicate which data is from sources vs your general knowledge. Do NOT just say "no information" — help the user as best you can.')
+    : '';
+
   const systemPrompt = isMalay
     ? `Anda menjawab soalan pengguna menggunakan maklumat daripada sumber web berikut.
 
@@ -519,6 +658,14 @@ Example: "Want me to compare specific models?" / "What's your budget range?"`;
   });
 
   contextBlock += '--- END WEB RESULTS ---';
+  contextBlock += knowledgeFallback;
+
+  // Add format reminder right before user question (LLMs pay more attention to recent instructions)
+  const formatReminder = isMalay
+    ? '\n\n📋 PERINGATAN FORMAT: Gunakan **bold**, emoji (🔹🔥👉), bullet points. Ekstrak semua data spesifik (nama produk, harga, spec). Akhiri dengan soalan susulan.'
+    : '\n\n📋 FORMAT REMINDER: Use **bold**, emoji (🔹🔥👉), bullet points. Extract all specific data (product names, prices, specs). End with a follow-up question.';
+  contextBlock += formatReminder;
+
   const sourcesFooter = sourcesList.join('\n');
 
   return { systemPrompt, contextBlock, sourcesFooter };
@@ -568,23 +715,52 @@ async function performWebResearch(userMessage) {
     ? rawBlocked.split(',').map(s => s.trim()).filter(Boolean)
     : [];
 
-  // Strip browse commands from query for cleaner search
-  let searchQuery = userMessage
+  // Strip browse commands, then reformulate for better search
+  let rawQuery = userMessage
     .replace(/\b(cari web|search web|browse web|web search)[:\s]*/gi, '')
     .replace(/\b(tanpa browse|no web|no browse)\b/gi, '')
     .trim();
 
-  if (searchQuery.length < 3) searchQuery = userMessage;
+  if (rawQuery.length < 3) rawQuery = userMessage;
+
+  const reformulated = reformulateQuery(rawQuery);
+  let searchQuery = reformulated.query;
+
+  // If user mentioned a specific platform, do a site-specific search first
+  const siteQuery = reformulated.siteHint
+    ? `site:${reformulated.siteHint} ${searchQuery}`
+    : null;
+
+  console.log('[web-research] Original:', userMessage);
+  console.log('[web-research] Reformulated:', searchQuery, siteQuery ? `(+ site:${reformulated.siteHint})` : '');
 
   try {
-    // Step 1: Search
-    const searchResults = await webSearch(searchQuery, 6);
+    // Step 1: Search — try site-specific first, then general
+    let searchResults = [];
+
+    if (siteQuery) {
+      searchResults = await webSearch(siteQuery, 6);
+    }
+
+    // If site search returned too few results, also do general search
+    if (searchResults.length < 3) {
+      const generalResults = await webSearch(searchQuery, 6);
+      // Merge, preferring site-specific results
+      const seenUrls = new Set(searchResults.map(r => r.url));
+      for (const r of generalResults) {
+        if (!seenUrls.has(r.url)) {
+          searchResults.push(r);
+          seenUrls.add(r.url);
+        }
+      }
+    }
+
     if (!searchResults || searchResults.length === 0) {
       return null;
     }
 
-    // Step 2: Select & filter sources
-    const candidateUrls = selectSources(searchResults, Math.max(maxSources, maxFetch));
+    // Step 2: Select & filter sources (now with relevance scoring)
+    const candidateUrls = selectSources(searchResults, Math.max(maxSources, maxFetch), searchQuery);
     const safeUrls = candidateUrls.filter(u => isUrlSafe(u, allowedDomains, blockedDomains));
 
     if (safeUrls.length === 0) return null;
@@ -640,6 +816,7 @@ setInterval(cacheCleanup, 10 * 60 * 1000);
 
 module.exports = {
   shouldBrowseWeb,
+  reformulateQuery,
   webSearch,
   selectSources,
   fetchAndExtract,

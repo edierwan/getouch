@@ -412,6 +412,48 @@ test('T17: Pure Kelantan greeting → KELANTAN', () => {
 });
 
 /* ═══════════════════════════════════════════════════════════
+   Web Research — Query Reformulation
+   ═══════════════════════════════════════════════════════════ */
+console.log('\n── Web Research: Query Reformulation ──');
+const { reformulateQuery } = require('../lib/web-research');
+
+// T18: VRAM query → expanded to GPU + site hint extracted
+test('T18: VRAM query → GPU expansion + Shopee site hint', () => {
+  const r = reformulateQuery('boleh check harga vram 16gb dekat shope');
+  ok(r.query.includes('GPU'), 'should expand to GPU');
+  ok(r.query.includes('16GB'), 'should normalize size');
+  ok(r.query.includes('Malaysia'), 'should add Malaysia for price query');
+  eq(r.siteHint, 'shopee.com.my', 'should extract Shopee site hint');
+  ok(!r.query.includes('boleh'), 'should strip filler words');
+  ok(!r.query.includes('dekat'), 'should strip dekat');
+});
+
+// T19: Lazada query → site hint extracted, filler stripped
+test('T19: Lazada query extraction', () => {
+  const r = reformulateQuery('berapa harga RTX 4060 di lazada');
+  eq(r.siteHint, 'lazada.com.my');
+  ok(r.query.includes('rtx 4060') || r.query.includes('RTX 4060'), 'should preserve product name');
+  ok(!r.query.includes('lazada'), 'should remove platform from query');
+});
+
+// T20: No site hint for generic queries
+test('T20: Generic query — no site hint', () => {
+  const r = reformulateQuery('laptop i7 harga murah');
+  eq(r.siteHint, null, 'no platform mentioned');
+  ok(r.query.includes('laptop'), 'should preserve core term');
+  ok(r.query.includes('Malaysia'), 'should add Malaysia for price query');
+});
+
+// T21: Casual Malay with filler → clean query
+test('T21: Heavy filler stripping', () => {
+  const r = reformulateQuery('boleh tak tolong cari harga phone samsung');
+  ok(!r.query.includes('boleh'), 'strip boleh');
+  ok(!r.query.includes('tolong'), 'strip tolong');
+  ok(r.query.includes('samsung'), 'keep product name');
+  ok(r.query.includes('harga'), 'keep harga');
+});
+
+/* ═══════════════════════════════════════════════════════════
    Summary
    ═══════════════════════════════════════════════════════════ */
 console.log('\n══════════════════════════════════');
