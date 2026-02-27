@@ -1,4 +1,4 @@
-require('dotenv').config();
+try { require('dotenv').config(); } catch(e) {}
 
 const express = require('express');
 const path    = require('path');
@@ -21,10 +21,12 @@ const settingsRoutes    = require('./routes/settings');
 const smsGatewayRoutes  = require('./routes/sms-gateway');
 const smsAdminRoutes    = require('./routes/sms-admin');
 const waAdminRoutes     = require('./routes/wa-admin');
+const reportingRoutes   = require('./routes/reporting');
 const smsWorker         = require('./lib/sms-worker');
+const { visitorMiddleware } = require('./lib/usage');
 
 /* ── Config ─────────────────────────────────────────────── */
-const PORT    = 3000;
+const PORT    = process.env.PORT || 3001;
 const VERSION = process.env.VERSION || '1.0.0';
 const ASSET_V = VERSION + '.' + Date.now();  // cache-bust token
 const isDev   = process.env.NODE_ENV !== 'production';
@@ -89,16 +91,22 @@ app.use(express.static(path.join(__dirname, 'public'), {
   etag: true,
 }));
 
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+/* ── Visitor tracking cookie ──────────────────────────────── */
+app.use(visitorMiddleware);
+
 /* ── Session ─────────────────────────────────────────────── */
-app.use(session({
-  store: new PgStore({
-    pool,
-    tableName: 'session',
-    createTableIfMissing: true,
-  }),
+const pgSessionStore = new PgStore({
+  pool,
+  tableName: 'session',
+  createTableIfMissing: true,
+  errorLog: (err) => console.error('[session-store] PgStore error:', err.message),
+});
+
+const sessionMiddleware = session({
+  store: pgSessionStore,
   secret: process.env.SESSION_SECRET || 'getouch-dev-secret',
   resave: false,
   saveUninitialized: false,
@@ -108,11 +116,26 @@ app.use(session({
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     sameSite: 'lax',
   },
-}));
+});
+
+// Wrap session middleware so DB failures don't crash public pages
+app.use((req, res, next) => {
+  sessionMiddleware(req, res, (err) => {
+    if (err) {
+      console.error('[session] Session init failed:', err.message);
+      // Continue without session — public pages still work
+      req.session = null;
+    }
+    next();
+  });
+});
 
 /* ── Passport ────────────────────────────────────────────── */
 app.use(passport.initialize());
-app.use(passport.session());
+app.use((req, res, next) => {
+  if (!req.session) return next(); // Skip passport if session unavailable
+  passport.session()(req, res, next);
+});
 
 /* ── Auth & API routes ───────────────────────────────────── */
 app.use('/auth', authRoutes);
@@ -125,9 +148,19 @@ app.use('/v1', waGatewayRoutes);
 app.use('/v1', chatStreamRoutes);
 app.use('/v1', imageRoutes);
 app.use('/v1/admin', settingsRoutes);
+app.use('/v1/admin', reportingRoutes);
 app.use('/v1/sms', smsGatewayRoutes);
 app.use('/v1/admin/sms', smsAdminRoutes);
 app.use('/v1/admin/wa', waAdminRoutes);
+
+/* ── Public guest threshold endpoint (for soft gate) ──── */
+app.get('/v1/guest/thresholds', async (_req, res) => {
+  const { getSetting } = require('./lib/settings');
+  res.json({
+    soft_gate_after_chats: await getSetting('guest.soft_gate_after_chats', 5),
+    soft_gate_after_images: await getSetting('guest.soft_gate_after_images', 2),
+  });
+});
 
 /* ── Authenticated API endpoints ─────────────────────────── */
 app.get('/api/me', requireAuth, async (req, res) => {
@@ -414,6 +447,17 @@ app.use((req, res) => {
   res.status(404).json({ error: 'not_found', path: req.path });
 });
 
+/* ── Global error handler ────────────────────────────────── */
+app.use((err, req, res, _next) => {
+  console.error(`[app] Unhandled error on ${req.method} ${req.path}:`, err.message);
+  if (isDev) console.error(err.stack);
+  res.status(500).json({
+    error: 'internal_server_error',
+    message: isDev ? err.message : 'Something went wrong',
+    path: req.path,
+  });
+});
+
 /* ── Start ───────────────────────────────────────────────── */
 // Run AI platform migration after base schema
 async function runMigrations() {
@@ -460,10 +504,86 @@ async function runMigrations() {
         require('path').join(__dirname, 'migrations', '002_dual_environment.sql'), 'utf8'
       );
       await poolDev.query(migration002);
+
+      const migration008dev = require('fs').readFileSync(
+        require('path').join(__dirname, 'migrations', '008_usage_events.sql'), 'utf8'
+      );
+      await poolDev.query(migration008dev);
       console.log('[db:dev] Migrations applied on dev pool');
     } catch (err) {
       console.error('[db:dev] Migration error (may already exist):', err.message);
     }
+  }
+
+  // Migration 008 — Usage events tracking
+  try {
+    const migration008 = require('fs').readFileSync(
+      require('path').join(__dirname, 'migrations', '008_usage_events.sql'), 'utf8'
+    );
+    await pool.query(migration008);
+    console.log('[db] Migration 008 (usage events) applied');
+  } catch (err) {
+    console.error('[db] Migration 008 error (may already exist):', err.message);
+  }
+}
+
+// Warmup Ollama model so first chat response is fast
+async function warmupOllama() {
+  const OLLAMA_HOST = process.env.OLLAMA_HOST || 'ollama';
+  const OLLAMA_PORT = process.env.OLLAMA_PORT || '11434';
+  const ollamaUrl = `http://${OLLAMA_HOST}:${OLLAMA_PORT}`;
+  try {
+    const { getSetting } = require('./lib/settings');
+    const defaultModel = await getSetting('ai.default_text_model', 'llama3.1:8b');
+    console.log(`[ollama] Warming up model: ${defaultModel}...`);
+    const ac = new AbortController();
+    const tm = setTimeout(() => ac.abort(), 120_000); // 2 min timeout for model load
+    const r = await fetch(`${ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: defaultModel,
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+        keep_alive: '30m',
+        options: { num_predict: 1 },
+      }),
+      signal: ac.signal,
+    });
+    clearTimeout(tm);
+    if (r.ok) {
+      console.log(`[ollama] Model ${defaultModel} warmed up (kept alive 30m)`);
+    } else {
+      console.warn(`[ollama] Warmup returned HTTP ${r.status}`);
+    }
+
+    // Also warm up vision model if different
+    const visionModel = await getSetting('ai.default_vision_model', 'qwen2.5vl:32b');
+    if (visionModel && visionModel !== defaultModel) {
+      console.log(`[ollama] Warming up vision model: ${visionModel}...`);
+      const ac2 = new AbortController();
+      const tm2 = setTimeout(() => ac2.abort(), 180_000);
+      const r2 = await fetch(`${ollamaUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: visionModel,
+          messages: [{ role: 'user', content: 'hi' }],
+          stream: false,
+          keep_alive: '30m',
+          options: { num_predict: 1 },
+        }),
+        signal: ac2.signal,
+      });
+      clearTimeout(tm2);
+      if (r2.ok) {
+        console.log(`[ollama] Vision model ${visionModel} warmed up (kept alive 30m)`);
+      } else {
+        console.warn(`[ollama] Vision warmup returned HTTP ${r2.status}`);
+      }
+    }
+  } catch (err) {
+    console.warn('[ollama] Warmup failed (model will load on first request):', err.message);
   }
 }
 
@@ -473,6 +593,9 @@ initSchema()
     // Start SMS worker
     try { smsWorker.startWorker(); console.log('[sms] Worker started'); }
     catch(err) { console.error('[sms] Worker start error:', err.message); }
+
+    // Warmup Ollama in background (don't block startup)
+    warmupOllama();
 
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`[app] v${VERSION} → http://localhost:${PORT}`);

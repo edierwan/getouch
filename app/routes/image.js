@@ -1,5 +1,5 @@
 /**
- * POST /v1/image/generate — Image generation via ComfyUI (SDXL)
+ * POST /v1/image/generate — Image generation via ComfyUI (SDXL / FLUX)
  * GET  /v1/image/quota    — Remaining daily quota
  * GET  /v1/image/:id      — Serve generated image
  *
@@ -12,6 +12,7 @@ const crypto      = require('crypto');
 const { query, queryFor } = require('../lib/db');
 const { getSetting }    = require('../lib/settings');
 const { checkRateLimit, getActor } = require('../lib/rate-limit');
+const { logUsageEvent, getGuestImageCountToday, getVisitorTotals } = require('../lib/usage');
 const comfyui      = require('../lib/comfyui');
 
 const router = Router();
@@ -43,6 +44,21 @@ router.post('/image/generate', async (req, res) => {
     return res.status(503).json({ error: 'Image generation is currently disabled' });
   }
 
+  // Guest daily image limit (unauthenticated users only)
+  const isGuest = !(req.session && req.session.userId);
+  if (isGuest && req.visitorId) {
+    const guestImgMax = await getSetting('guest.images_per_day', 3);
+    const guestImgUsed = await getGuestImageCountToday(req.visitorId);
+    if (guestImgUsed >= guestImgMax) {
+      return res.status(429).json({
+        error: 'Guest image limit reached',
+        action: 'register',
+        limit: guestImgMax,
+        used: guestImgUsed,
+      });
+    }
+  }
+
   // Check daily quota (per environment)
   const quotaKey = `ai.image.max_per_day_free.${env}`;
   const maxPerDay = await getSetting(quotaKey, await getSetting('ai.image.max_per_day_free', 5));
@@ -69,13 +85,25 @@ router.post('/image/generate', async (req, res) => {
   }
 
   // Validate input
-  const { prompt, negative_prompt, width, height, steps, cfg, seed } = req.body || {};
+  const { prompt, negative_prompt, width, height, steps, cfg, seed,
+          source_image, source_image_mime, source_filename, denoise } = req.body || {};
 
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
     return res.status(400).json({ error: 'prompt is required (min 3 characters)' });
   }
   if (prompt.length > 1000) {
     return res.status(400).json({ error: 'prompt too long (max 1000 characters)' });
+  }
+
+  // Check if this is img2img (source image provided)
+  const hasSourceImage = source_image && typeof source_image === 'string' && source_image.length > 0;
+  let sourceImageBuffer = null;
+  if (hasSourceImage) {
+    sourceImageBuffer = Buffer.from(source_image, 'base64');
+    const sourceSizeMB = sourceImageBuffer.length / (1024 * 1024);
+    if (sourceSizeMB > 10) {
+      return res.status(400).json({ error: 'Source image too large (max 10 MB)' });
+    }
   }
 
   const params = {
@@ -86,6 +114,7 @@ router.post('/image/generate', async (req, res) => {
     steps:  Math.min(Math.max(steps  || 25, 1), 40),
     cfg:    Math.min(Math.max(cfg    || 7.0, 1), 20),
     seed:   seed || undefined,
+    engine: await getSetting('ai.default_image_engine', 'sdxl'),
   };
 
   // Create image record (in environment-specific DB)
@@ -112,7 +141,20 @@ router.post('/image/generate', async (req, res) => {
 
   // Generate image
   try {
-    const result = await comfyui.generateImage(params, IMAGE_DIR);
+    let result;
+
+    if (sourceImageBuffer) {
+      // img2img: enhance/edit source image with prompt guidance
+      result = await comfyui.generateImg2Img({
+        ...params,
+        source_image: sourceImageBuffer,
+        source_filename: source_filename || 'source.png',
+        denoise: denoise || 0.45,
+      }, IMAGE_DIR);
+    } else {
+      // txt2img: generate from prompt only
+      result = await comfyui.generateImage(params, IMAGE_DIR);
+    }
 
     // Update image record
     await queryFor(env,
@@ -133,6 +175,19 @@ router.post('/image/generate', async (req, res) => {
       seed: result.seed,
       environment: env,
       timings: result.timings,
+    });
+
+    // Log usage event for reporting
+    logUsageEvent({
+      visitorId: req.visitorId || actor,
+      userId: req.session && req.session.userId ? req.session.userId : null,
+      eventType: 'image',
+      mode: params.engine || 'sdxl',
+      model: params.engine || 'sdxl',
+      status: 'ok',
+      latencyMs: result.timings ? Math.round((result.timings.total || 0) * 1000) : null,
+      inputLen: prompt.length,
+      environment: env,
     });
 
   } catch (err) {

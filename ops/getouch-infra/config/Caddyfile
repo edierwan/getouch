@@ -21,7 +21,7 @@
 # ── Stricter CSP for admin / internal pages ──
 (admin_csp) {
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://analytics.getouch.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://analytics.getouch.co; frame-ancestors 'self'"
 	}
 }
 
@@ -97,6 +97,12 @@ metrics.getouch.co:80 {
 	import security_headers
 	import admin_csp
 	reverse_proxy prometheus:9090
+}
+
+# ── Umami Analytics — Cloudflare Access protected ────────────────
+analytics.getouch.co:80 {
+	import security_headers
+	reverse_proxy umami:3000
 }
 
 # ── Coolify — Cloudflare Access protected ─────────────────────────

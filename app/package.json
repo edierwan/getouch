@@ -4,22 +4,27 @@
   "private": true,
   "description": "Getouch Platform — Landing page, Admin dashboard, and Ops console",
   "scripts": {
-    "predev": "node scripts/free-port-3000.js",
+    "predev": "node scripts/free-port.js",
     "dev": "node --watch server.js",
     "start": "node server.js"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^10.0.0",
     "crypto-random-string": "^5.0.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.19.0",
+    "franc-min": "^6.2.0",
+    "mammoth": "^1.11.0",
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
+    "pdf-parse": "^2.4.5",
     "pg": "^8.18.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "xlsx": "^0.18.5"
   },
   "engines": {
     "node": ">=20"

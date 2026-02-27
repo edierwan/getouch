@@ -16,19 +16,19 @@ services:
     container_name: postgres-ssd
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_STG_USER:-getouch}
-      POSTGRES_PASSWORD: ${POSTGRES_STG_PASSWORD:?Set POSTGRES_STG_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_STG_DB:-getouch}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_STG_PASSWORD:-Turun@202020}
+      POSTGRES_DB: postgres
       TZ: Asia/Kuala_Lumpur
     volumes:
-      - /data/postgres-ssd:/var/lib/postgresql/data
+      - /data/postgres-ssd/data:/var/lib/postgresql/data
       - /opt/getouch/config/init-databases-staging.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     # No port mapping — only reachable from containers on getouch_data network.
     # pgAdmin connects via internal DNS: postgres-ssd:5432
     networks:
       - getouch_data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_STG_USER:-getouch}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5

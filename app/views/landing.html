@@ -6,6 +6,7 @@
   <meta name="description" content="Getouch — Intelligent engagement platform powered by on-premises AI">
   <title>Getouch Platform</title>
   <link rel="stylesheet" href="/css/styles.css?v={{VERSION}}">
+  <script defer src="https://analytics.getouch.co/getscript" data-website-id="c1cbd077-9d1f-4fed-9985-8e9abf55fccd"></script>
 </head>
 <body>
   <div class="bg-mesh"></div>
@@ -69,17 +70,25 @@
     <!-- ─── Input Bar ───────────────────────────────────── -->
     <div class="landing-input-bar">
       <div class="landing-input-bar__inner">
-        <input type="text"
+        <textarea
           class="landing-input-bar__input"
           id="landing-input"
           placeholder="Ask about our services or anything else..."
           autocomplete="off"
-          maxlength="4000">
-        <!-- Image attachment preview -->
+          maxlength="4000"
+          rows="1"></textarea>
+        <!-- Attachment preview (images & documents) -->
         <div class="image-attach-preview" id="image-attach-preview" style="display:none;">
-          <img class="image-attach-preview__thumb" id="image-attach-thumb" src="" alt="">
+          <div class="image-attach-preview__card">
+            <img class="image-attach-preview__thumb" id="image-attach-thumb" src="" alt="">
+            <button class="image-attach-preview__remove" id="image-attach-remove" title="Remove attachment">&times;</button>
+          </div>
+          <div class="doc-attach-chip" id="doc-attach-chip" style="display:none;">
+            <span class="doc-attach-chip__icon" id="doc-chip-icon">📄</span>
+            <span class="doc-attach-chip__name" id="doc-chip-name"></span>
+            <span class="doc-attach-chip__type" id="doc-chip-type"></span>
+          </div>
           <span class="image-attach-preview__info" id="image-attach-info"></span>
-          <button class="image-attach-preview__remove" id="image-attach-remove" title="Remove image">&times;</button>
         </div>
         <div class="landing-input-bar__bottom">
           <!-- Mode Selector: minimal + button with popover -->
@@ -104,9 +113,9 @@
               </button>
             </div>
           </div>
-          <!-- Image Attach Button -->
-          <input type="file" id="image-attach-input" accept="image/png,image/jpeg,image/webp" style="display:none;">
-          <button class="mode-sel__btn" id="image-attach-btn" type="button" title="Attach image for vision AI" style="margin-left:4px;">
+          <!-- Attach Button (images + documents) -->
+          <input type="file" id="image-attach-input" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx,text/plain,.txt,.csv,text/csv,.pptx,.xlsx,.xls" style="display:none;">
+          <button class="mode-sel__btn" id="image-attach-btn" type="button" title="Attach file (image, PDF, DOCX, TXT)" style="margin-left:4px;">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
           </button>
           <!-- Typing Pace Settings -->
@@ -195,7 +204,12 @@
     var imgAttachThumb   = document.getElementById('image-attach-thumb');
     var imgAttachInfo    = document.getElementById('image-attach-info');
     var imgAttachRemove  = document.getElementById('image-attach-remove');
+    var docAttachChip    = document.getElementById('doc-attach-chip');
+    var docChipIcon      = document.getElementById('doc-chip-icon');
+    var docChipName      = document.getElementById('doc-chip-name');
+    var docChipType      = document.getElementById('doc-chip-type');
     var pendingImage     = null; // { file, base64, mimeType }
+    var pendingDoc       = null; // { file, base64Raw, name, mimeType, kind }
 
     var isStreaming = false;
     var currentMode = localStorage.getItem('getouch_mode') || 'text';
@@ -424,7 +438,7 @@
       try { localStorage.setItem('getouch_mode', currentMode); } catch(e) {}
 
       if (currentMode === 'image') {
-        input.placeholder = 'Describe the image you want to generate...';
+        input.placeholder = pendingImage ? 'Describe how to edit this image...' : 'Describe the image you want to generate...';
         input.maxLength = 1000;
         quotaBadge.style.display = '';
         loadQuota();
@@ -452,7 +466,16 @@
         });
     }
 
-    /* ── Send on Enter ─────────────────────────────────── */
+    /* ── Auto-resize textarea ─────────────────────────── */
+    function autoResize() {
+      input.style.height = 'auto';
+      var maxH = 200; // max height in px
+      input.style.height = Math.min(input.scrollHeight, maxH) + 'px';
+      input.style.overflowY = input.scrollHeight > maxH ? 'auto' : 'hidden';
+    }
+    input.addEventListener('input', autoResize);
+
+    /* ── Send on Enter (Shift+Enter = new line) ────────── */
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -499,7 +522,7 @@
     /* ── Main send function ────────────────────────────── */
     function send() {
       var text = input.value.trim();
-      if ((!text && !pendingImage) || isStreaming) return;
+      if ((!text && !pendingImage && !pendingDoc) || isStreaming) return;
 
       // Hide welcome section, switch to chat-only layout
       if (welcome) {
@@ -513,12 +536,13 @@
       }
 
       if (currentMode === 'image') {
-        sendImage(text);
+        sendImage(text, pendingImage);
       } else {
-        sendChat(text, pendingImage);
+        sendChat(text, pendingImage, pendingDoc);
       }
 
       input.value = '';
+      autoResize(); // reset textarea height after send
       clearImageAttach();
     }
 
@@ -526,7 +550,7 @@
     var activeTypewriter = null;
 
     /* ── Text Chat with SSE Streaming + Typewriter ─────── */
-    function sendChat(text, imageData) {
+    function sendChat(text, imageData, docData) {
       chatArea.style.display = '';
       imageResult.style.display = 'none';
 
@@ -543,7 +567,13 @@
       if (imageData) {
         userBubbleHtml += '<img class="lc-msg__image" src="' + imageData.base64 + '" alt="Attached image">';
       }
-      userBubbleHtml += '<div class="lc-msg__bubble lc-msg__bubble--user">' + escapeHtml(text || 'Describe this image') + '</div>';
+      if (docData) {
+        userBubbleHtml += '<div class="lc-msg__doc-chip"><span class="lc-msg__doc-icon">' +
+          getDocIcon(docData.mimeType) + '</span> ' + escapeHtml(docData.name) +
+          ' <span class="lc-msg__doc-type">' + getDocLabel(docData.mimeType) + '</span></div>';
+      }
+      var displayText = text || (docData ? 'Analyze this document' : (imageData ? 'Describe this image' : ''));
+      userBubbleHtml += '<div class="lc-msg__bubble lc-msg__bubble--user">' + escapeHtml(displayText).replace(/\n/g, '<br>') + '</div>';
       userDiv.innerHTML = userBubbleHtml;
       messages.appendChild(userDiv);
       forceScrollChat();
@@ -581,12 +611,23 @@
       activeTypewriter = tw;
 
       // Build request body
-      var reqBody = { message: text || 'Describe this image' };
-      if (imageData) {
-        // Strip data:image/...;base64, prefix for backend
+      var reqBody = {};
+      if (text) reqBody.message = text;
+      if (imageData && !docData) {
+        // Legacy image path — keep backward compatible
+        reqBody.message = reqBody.message || 'Describe this image';
         var rawBase64 = imageData.base64.split(',')[1] || imageData.base64;
         reqBody.image = rawBase64;
         reqBody.image_mime = imageData.mimeType;
+      }
+      if (docData) {
+        // Document upload path
+        reqBody.doc_base64 = docData.base64Raw;
+        reqBody.doc_name = docData.name;
+        reqBody.doc_mime = docData.mimeType;
+      }
+      if (!reqBody.message && !docData && !imageData) {
+        reqBody.message = text || 'Hello';
       }
 
       // Use fetch + ReadableStream for SSE
@@ -597,6 +638,21 @@
         signal: abortCtrl.signal,
       }).then(function(response) {
         if (!response.ok) {
+          // Check for guest limit response
+          if (response.status === 429) {
+            return response.json().then(function(errData) {
+              if (errData.action === 'register') {
+                thinkingEl.style.display = 'none';
+                cursorEl.style.display = 'none';
+                contentEl.innerHTML = '<span style="color:var(--accent)">You\'ve reached the guest limit. ' +
+                  '<a href="/auth/register" style="color:var(--accent);text-decoration:underline;font-weight:600;">Create a free account</a> to continue chatting.</span>';
+                isStreaming = false;
+                sendBtn.disabled = false;
+                return;
+              }
+              throw new Error('Rate limited');
+            });
+          }
           throw new Error('HTTP ' + response.status);
         }
 
@@ -636,6 +692,25 @@
 
                 try {
                   var payload = JSON.parse(line.substring(6));
+
+                  if (eventType === 'status') {
+                    // Router status updates
+                    if (payload.status === 'browsing') {
+                      thinkingEl.textContent = '🌐 Searching the web…';
+                    } else if (payload.status === 'researched') {
+                      thinkingEl.textContent = '🌐 Found ' + payload.sources + ' source' + (payload.sources > 1 ? 's' : '') + ' · Generating answer…';
+                    } else if (payload.status === 'browse_fallback') {
+                      thinkingEl.textContent = 'Thinking…';
+                    } else if (payload.status === 'routed') {
+                      // Optionally show route-specific indicator
+                      if (payload.route === 'DOCUMENT_ANALYSIS') {
+                        thinkingEl.textContent = '📄 Analyzing document…';
+                      } else if (payload.route === 'IMAGE_TASK') {
+                        thinkingEl.textContent = '🖼️ Analyzing image…';
+                      }
+                      // For SMALLTALK / GENERAL_CHAT / TASK — keep default "Thinking…"
+                    }
+                  }
 
                   if (eventType === 'token' && payload.delta) {
                     if (!firstTokenReceived) {
@@ -693,28 +768,61 @@
     }
 
     /* ── Image Generation ──────────────────────────────── */
-    function sendImage(prompt) {
+    function sendImage(prompt, imageData) {
       chatArea.style.display = 'none';
       imageResult.style.display = '';
+
+      var hasSource = imageData && imageData.base64;
+      var progressLabel = hasSource ? 'Enhancing image…' : 'Generating image…';
+      var progressHint = hasSource ? 'Applying your edits (15-60 seconds)' : 'This may take 15-60 seconds';
 
       imageInner.innerHTML =
         '<div class="img-progress">' +
           '<div class="img-progress__spinner"></div>' +
-          '<p class="img-progress__text">Generating image…</p>' +
-          '<p class="img-progress__hint">This may take 15-60 seconds</p>' +
+          '<p class="img-progress__text">' + progressLabel + '</p>' +
+          '<p class="img-progress__hint">' + progressHint + '</p>' +
         '</div>';
 
       isStreaming = true;
       sendBtn.disabled = true;
 
+      // Build request body — include source image for img2img if attached
+      var reqBody = { prompt: prompt || 'enhance this image' };
+      if (hasSource) {
+        var rawBase64 = imageData.base64.split(',')[1] || imageData.base64;
+        reqBody.source_image = rawBase64;
+        reqBody.source_image_mime = imageData.mimeType;
+        reqBody.source_filename = imageData.file ? imageData.file.name : 'source.png';
+        // For restoration/enhancement, craft a better prompt
+        var lowerPrompt = (prompt || 'enhance').toLowerCase();
+        var isRestoreRequest = /\b(restore|clear|enhance|fix|clean|repair|improve|sharpen|upscale|denoise|old photo|vintage)\b/.test(lowerPrompt);
+        if (isRestoreRequest || !prompt) {
+          reqBody.prompt = 'high quality restored photograph, clear, sharp, enhanced colors, professional restoration' + (prompt ? ', ' + prompt : '');
+          reqBody.negative_prompt = 'blurry, noise, grain, damaged, scratched, faded, deteriorated, low quality, watermark, text, deformed';
+        }
+        reqBody.denoise = 0.40;
+      }
+
       fetch('/v1/image/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt }),
+        body: JSON.stringify(reqBody),
       })
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        return r.json().then(function(data) { data._httpStatus = r.status; return data; });
+      })
       .then(function(data) {
         if (data.error) {
+          // Check for guest limit
+          if (data._httpStatus === 429 && data.action === 'register') {
+            imageInner.innerHTML =
+              '<div class="img-error" style="text-align:center;padding:32px;">' +
+                '<p style="color:var(--accent);font-weight:600;margin-bottom:12px;">Guest image limit reached</p>' +
+                '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:16px;">Create a free account to generate more images.</p>' +
+                '<a href="/auth/register" class="btn btn--primary btn--sm" style="text-decoration:none;">Create Free Account</a>' +
+              '</div>';
+            return;
+          }
           imageInner.innerHTML =
             '<div class="img-error">' +
               '<p style="color:var(--red);font-weight:600;">Image generation: ' + escapeHtml(data.error) + '</p>' +
@@ -822,40 +930,142 @@
     twSpeed.addEventListener('input', updateTypingSetting);
     twAdaptive.addEventListener('change', updateTypingSetting);
 
-    /* ── Image Attach Handlers ───────────────────────────── */
+    /* ── Attachment Handlers (images + documents) ───────────── */
     var MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+    var MAX_DOC_SIZE = 20 * 1024 * 1024;   // 20MB
+
+    var DOC_MIMES = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+    var IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+
+    function getDocIcon(mime) {
+      if (mime === 'application/pdf') return '📕';
+      if (mime && mime.indexOf('wordprocessingml') > -1) return '📘';
+      if (mime === 'text/plain') return '📄';
+      if (mime && mime.indexOf('presentationml') > -1) return '📙';
+      if (mime && (mime.indexOf('excel') > -1 || mime.indexOf('spreadsheetml') > -1)) return '📗';
+      return '📄';
+    }
+
+    function getDocLabel(mime) {
+      if (mime === 'application/pdf') return 'PDF';
+      if (mime && mime.indexOf('wordprocessingml') > -1) return 'DOCX';
+      if (mime === 'text/plain') return 'TXT';
+      if (mime && mime.indexOf('presentationml') > -1) return 'PPTX';
+      if (mime && (mime.indexOf('excel') > -1 || mime.indexOf('spreadsheetml') > -1)) return 'XLS';
+      return 'DOC';
+    }
+
+    function getDocExt(name) {
+      var ext = (name || '').split('.').pop().toLowerCase();
+      return ext;
+    }
+
+    function isDocMime(mime, fileName) {
+      if (DOC_MIMES.indexOf(mime) > -1) return true;
+      var ext = getDocExt(fileName);
+      return ['pdf','docx','txt','pptx','xlsx','xls'].indexOf(ext) > -1;
+    }
 
     function clearImageAttach() {
       pendingImage = null;
+      pendingDoc = null;
       imgAttachPreview.style.display = 'none';
       imgAttachThumb.src = '';
+      imgAttachThumb.style.display = '';
       imgAttachInfo.textContent = '';
       imgAttachInput.value = '';
+      docAttachChip.style.display = 'none';
+      // Restore placeholder
+      if (currentMode === 'image') {
+        input.placeholder = 'Describe the image you want to generate...';
+      }
     }
 
-    function handleImageFile(file) {
+    function handleFile(file) {
       if (!file) return;
-      if (!file.type.match(/^image\/(png|jpeg|webp)$/)) {
-        alert('Only PNG, JPEG, or WebP images are supported.');
+      var mime = file.type || '';
+      var isImage = IMAGE_MIMES.indexOf(mime) > -1;
+      var isDoc = isDocMime(mime, file.name);
+
+      if (!isImage && !isDoc) {
+        alert('Supported: PNG, JPG, WebP, PDF, DOCX, TXT, PPTX, XLS/XLSX');
         return;
       }
-      if (file.size > MAX_IMAGE_SIZE) {
-        alert('Image too large. Maximum size is 10MB.');
-        return;
+
+      if (isImage) {
+        if (file.size > MAX_IMAGE_SIZE) {
+          alert('Image too large. Maximum size is 10 MB.');
+          return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          pendingImage = { file: file, base64: e.target.result, mimeType: mime };
+          pendingDoc = null;
+          imgAttachThumb.src = e.target.result;
+          imgAttachThumb.style.display = '';
+          docAttachChip.style.display = 'none';
+          imgAttachInfo.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+          imgAttachPreview.style.display = 'flex';
+          // Update placeholder for image mode
+          if (currentMode === 'image') {
+            input.placeholder = 'Describe how to edit this image...';
+          }
+          input.focus();
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Document file
+        if (file.size > MAX_DOC_SIZE) {
+          alert('File too large. Maximum size is 20 MB.');
+          return;
+        }
+        var reader2 = new FileReader();
+        reader2.onload = function(e) {
+          // e.target.result is an ArrayBuffer
+          var uint8 = new Uint8Array(e.target.result);
+          var binary = '';
+          for (var i = 0; i < uint8.length; i++) {
+            binary += String.fromCharCode(uint8[i]);
+          }
+          var base64Raw = btoa(binary);
+          var effectiveMime = mime || guessMimeFromExt(file.name);
+          pendingDoc = { file: file, base64Raw: base64Raw, name: file.name, mimeType: effectiveMime, kind: 'doc' };
+          pendingImage = null;
+          imgAttachThumb.style.display = 'none';
+          docAttachChip.style.display = 'flex';
+          docChipIcon.textContent = getDocIcon(effectiveMime);
+          docChipName.textContent = file.name.length > 30 ? file.name.slice(0, 27) + '...' : file.name;
+          docChipType.textContent = getDocLabel(effectiveMime);
+          imgAttachInfo.textContent = (file.size / 1024).toFixed(0) + ' KB';
+          imgAttachPreview.style.display = 'flex';
+          input.focus();
+        };
+        reader2.readAsArrayBuffer(file);
       }
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        pendingImage = { file: file, base64: e.target.result, mimeType: file.type };
-        imgAttachThumb.src = e.target.result;
-        imgAttachInfo.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
-        imgAttachPreview.style.display = 'flex';
-        input.focus();
+    }
+
+    function guessMimeFromExt(name) {
+      var ext = getDocExt(name);
+      var map = {
+        'pdf': 'application/pdf',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'txt': 'text/plain',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       };
-      reader.readAsDataURL(file);
+      return map[ext] || 'application/octet-stream';
     }
 
     imgAttachBtn.addEventListener('click', function() { imgAttachInput.click(); });
-    imgAttachInput.addEventListener('change', function() { handleImageFile(this.files[0]); });
+    imgAttachInput.addEventListener('change', function() { handleFile(this.files[0]); });
     imgAttachRemove.addEventListener('click', clearImageAttach);
 
     // Paste image from clipboard
@@ -865,20 +1075,20 @@
       for (var i = 0; i < items.length; i++) {
         if (items[i].type.indexOf('image/') === 0) {
           e.preventDefault();
-          handleImageFile(items[i].getAsFile());
+          handleFile(items[i].getAsFile());
           return;
         }
       }
     });
 
-    // Drag & drop image
+    // Drag & drop file
     var inputBar = document.querySelector('.landing-input-bar__inner');
     inputBar.addEventListener('dragover', function(e) { e.preventDefault(); this.style.borderColor = 'var(--accent)'; });
     inputBar.addEventListener('dragleave', function() { this.style.borderColor = ''; });
     inputBar.addEventListener('drop', function(e) {
       e.preventDefault();
       this.style.borderColor = '';
-      if (e.dataTransfer.files.length) handleImageFile(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
 
     /* ── Check if user is logged in → show avatar ──────── */
@@ -931,6 +1141,135 @@
         input.focus();
       }
     });
+
+    /* ── Soft Registration Gate ────────────────────────── */
+    (function softGate() {
+      var isLoggedIn = false;
+      var gateShown = false;
+      var STORAGE_KEY = 'getouch_usage';
+
+      // Check login status
+      fetch('/api/me', { credentials: 'same-origin' })
+        .then(function(r) { if (r.ok) isLoggedIn = true; })
+        .catch(function() {});
+
+      function getUsage() {
+        try {
+          var raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) return JSON.parse(raw);
+        } catch(e) {}
+        return { chats: 0, images: 0, dismissed: 0 };
+      }
+
+      function saveUsage(u) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(u)); } catch(e) {}
+      }
+
+      function incrementUsage(type) {
+        var u = getUsage();
+        u[type] = (u[type] || 0) + 1;
+        saveUsage(u);
+        return u;
+      }
+
+      // Thresholds (defaults, overridden by server settings below)
+      var thresholds = { chats: 5, images: 2 };
+
+      // Fetch server thresholds
+      fetch('/v1/guest/thresholds')
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(d) {
+          if (!d) return;
+          if (d.soft_gate_after_chats) thresholds.chats = Number(d.soft_gate_after_chats);
+          if (d.soft_gate_after_images) thresholds.images = Number(d.soft_gate_after_images);
+        })
+        .catch(function() {});
+
+      function shouldShowGate() {
+        if (isLoggedIn || gateShown) return false;
+        var u = getUsage();
+        // Don't show more than once per session after dismissal
+        if (u.dismissed && Date.now() - u.dismissed < 3600000) return false;
+        return (u.chats >= thresholds.chats) || (u.images >= thresholds.images);
+      }
+
+      function showGateModal() {
+        if (document.getElementById('soft-gate-modal')) return;
+        gateShown = true;
+
+        var overlay = document.createElement('div');
+        overlay.id = 'soft-gate-modal';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);animation:fadeIn .2s;';
+
+        overlay.innerHTML =
+          '<div style="background:var(--card-bg,#1a1a2e);border:1px solid var(--border,#2a2a4a);border-radius:16px;padding:32px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
+            '<div style="font-size:2rem;margin-bottom:12px;">✨</div>' +
+            '<h2 style="font-size:1.1rem;font-weight:700;color:var(--text,#fff);margin-bottom:8px;">Enjoying Getouch AI?</h2>' +
+            '<p style="font-size:.85rem;color:var(--text-muted,#8888aa);margin-bottom:24px;line-height:1.5;">' +
+              'Create a free account to get higher limits, save your history, and unlock more features.' +
+            '</p>' +
+            '<div style="display:flex;flex-direction:column;gap:10px;">' +
+              '<a href="/auth/register" style="display:inline-block;padding:10px 24px;background:var(--accent,#6366f1);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;transition:opacity .15s;" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">Create Free Account</a>' +
+              '<button id="gate-dismiss" style="padding:8px 24px;background:transparent;border:1px solid var(--border,#2a2a4a);color:var(--text-muted,#8888aa);border-radius:8px;cursor:pointer;font-size:.8rem;transition:border-color .15s;" onmouseover="this.style.borderColor=\'var(--text-muted)\'" onmouseout="this.style.borderColor=\'var(--border)\'">Continue as Guest</button>' +
+            '</div>' +
+          '</div>';
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('gate-dismiss').addEventListener('click', function() {
+          var u = getUsage();
+          u.dismissed = Date.now();
+          saveUsage(u);
+          overlay.remove();
+        });
+
+        // Also close on overlay click (outside card)
+        overlay.addEventListener('click', function(e) {
+          if (e.target === overlay) {
+            var u = getUsage();
+            u.dismissed = Date.now();
+            saveUsage(u);
+            overlay.remove();
+          }
+        });
+      }
+
+      // Hook into the original send function to track usage
+      var origSendRef = window.__origSend;
+      // We need to intercept after each successful send
+      // Use MutationObserver on messages to detect new bot responses
+      var msgObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+          m.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1 && node.classList && node.classList.contains('lc-msg--user')) {
+              incrementUsage('chats');
+              // Check after a short delay (let response start)
+              setTimeout(function() {
+                if (shouldShowGate()) showGateModal();
+              }, 2000);
+            }
+          });
+        });
+      });
+
+      if (messages) {
+        msgObserver.observe(messages, { childList: true });
+      }
+
+      // Also track image generates via imageInner
+      if (imageInner) {
+        var imgObserver = new MutationObserver(function() {
+          // Check if an image was generated (non-progress content)
+          if (imageInner.querySelector('img') || imageInner.querySelector('.img-result')) {
+            incrementUsage('images');
+            setTimeout(function() {
+              if (shouldShowGate()) showGateModal();
+            }, 3000);
+          }
+        });
+        imgObserver.observe(imageInner, { childList: true, subtree: true });
+      }
+    })();
 
   })();
   </script>

@@ -343,6 +343,7 @@ router.post('/chat', async (req, res) => {
             userMessage,
           ],
           stream: true,
+          keep_alive: '30m',
           options: {
             temperature: temperature ?? (routeType === 'SMALLTALK' ? 0.8 : 0.7),
             num_predict: max_tokens || decision.numPredict || (webResearchResult ? 2048 : (doc ? 4096 : 1024)),

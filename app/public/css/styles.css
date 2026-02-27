@@ -1217,6 +1217,11 @@ a { color: inherit; text-decoration: none; }
   padding: 0 4px 10px;
   line-height: 1.5;
   resize: none;
+  min-height: 24px;
+  max-height: 200px;
+  overflow-y: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 .landing-input-bar__input::placeholder { color: var(--text-dim); }
 
@@ -1256,28 +1261,35 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Image Attachment Preview ──────────────────────────── */
 .image-attach-preview {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 8px; margin-bottom: 6px;
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 8px 10px; margin-bottom: 6px;
   border-radius: var(--radius-sm);
   background: var(--bg); border: 1px solid var(--border);
 }
+.image-attach-preview__card {
+  position: relative; flex-shrink: 0;
+}
 .image-attach-preview__thumb {
-  width: 48px; height: 48px; object-fit: cover;
-  border-radius: 6px; border: 1px solid var(--border);
+  width: 100px; height: 100px; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--border);
+  display: block;
 }
 .image-attach-preview__info {
   flex: 1; font-size: .75rem; color: var(--text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  align-self: center;
 }
 .image-attach-preview__remove {
-  width: 24px; height: 24px; border-radius: 50%;
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--text-dim); cursor: pointer; display: flex;
-  align-items: center; justify-content: center; font-size: .85rem;
-  transition: all .15s;
+  position: absolute; top: -6px; right: -6px;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: none; background: rgba(0,0,0,.65);
+  color: #fff; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; font-size: .8rem;
+  transition: all .15s; z-index: 2;
+  backdrop-filter: blur(4px);
 }
 .image-attach-preview__remove:hover {
-  background: var(--red); color: #fff; border-color: var(--red);
+  background: var(--red); color: #fff;
 }
 
 /* Image in chat bubble */
@@ -1285,6 +1297,39 @@ a { color: inherit; text-decoration: none; }
   max-width: 280px; max-height: 200px;
   border-radius: 10px; margin-bottom: 6px;
   border: 1px solid var(--border);
+}
+
+/* ── Document Attachment Chip ──────────────────────────── */
+.doc-attach-chip {
+  display: flex; align-items: center; gap: 6px;
+}
+.doc-attach-chip__icon {
+  font-size: 1.4rem; line-height: 1;
+}
+.doc-attach-chip__name {
+  font-size: .8rem; color: var(--text);
+  font-weight: 500; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.doc-attach-chip__type {
+  font-size: .65rem; color: var(--accent);
+  font-weight: 700; background: rgba(99, 102, 241, .12);
+  padding: 1px 6px; border-radius: 4px; letter-spacing: .5px;
+}
+
+/* Document chip in chat bubble */
+.lc-msg__doc-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; margin-bottom: 6px;
+  border-radius: 8px; font-size: .8rem;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text);
+}
+.lc-msg__doc-icon { font-size: 1.1rem; }
+.lc-msg__doc-type {
+  font-size: .65rem; color: var(--accent);
+  font-weight: 700; background: rgba(99, 102, 241, .12);
+  padding: 1px 5px; border-radius: 3px; margin-left: 4px;
 }
 
 /* ── Mode Selector (minimal + button with popover) ─────── */

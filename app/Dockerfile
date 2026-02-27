@@ -2,6 +2,9 @@ FROM node:20-alpine
 LABEL maintainer="getouch"
 WORKDIR /app
 
+# poppler-utils for PDF page rendering (pdftoppm)
+RUN apk add --no-cache poppler-utils
+
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
