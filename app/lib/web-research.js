@@ -222,6 +222,7 @@ async function searchSearXNG(queryStr, limit = 6) {
     categories: 'general',
     language: 'auto',
     safesearch: '1',
+    engines: 'google,bing,yahoo',  // Default engines (brave/duckduckgo/startpage) often fail
   });
 
   const ac = new AbortController();
