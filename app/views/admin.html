@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Getouch Admin</title>
   <link rel="stylesheet" href="/css/styles.css?v={{VERSION}}">
+  <script defer src="https://analytics.getouch.co/getscript" data-website-id="c1cbd077-9d1f-4fed-9985-8e9abf55fccd"></script>
 </head>
 <body>
   <div class="admin-layout">
@@ -42,6 +43,10 @@
         <button class="admin-tab" role="tab" aria-selected="false" aria-controls="panel-users" data-tab="users">
           <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
           Users
+        </button>
+        <button class="admin-tab" role="tab" aria-selected="false" aria-controls="panel-reporting" data-tab="reporting">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          Reporting
         </button>
       </div>
 
@@ -160,13 +165,22 @@
             </div>
 
             <div class="ai-setting">
-              <label class="ai-setting__label">Enable Image Generation</label>
-              <p class="ai-setting__hint">Toggle SDXL image generation via ComfyUI for public users.</p>
+              <label class="ai-setting__label">Enable Getouch Image</label>
+              <p class="ai-setting__hint">Toggle image generation via ComfyUI for public users.</p>
               <label class="ai-toggle">
                 <input type="checkbox" id="setting-enable-image" checked>
                 <span class="ai-toggle__slider"></span>
                 <span class="ai-toggle__text" id="toggle-text">Enabled</span>
               </label>
+            </div>
+
+            <div class="ai-setting">
+              <label class="ai-setting__label">Default Image Engine</label>
+              <p class="ai-setting__hint">Select which ComfyUI pipeline to use for image generation.</p>
+              <select class="ai-setting__select" id="setting-image-engine">
+                <option value="sdxl">SDXL (Stable Diffusion XL)</option>
+                <option value="flux">FLUX</option>
+              </select>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -250,6 +264,196 @@
               </div>
             </div>
 
+            <!-- ── Web Research Section ──────────────────── -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+              <h3 style="font-size: .9rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">🧠 Personality & Routing</h3>
+              <p class="ai-setting__hint" style="margin-bottom: 14px;">Controls the AI's smart routing, dialect mirroring, and personality behavior. When enabled, messages are automatically classified (smalltalk, task, question, etc.) and the AI adapts its tone and response style accordingly.</p>
+
+              <div class="ai-setting">
+                <label class="ai-setting__label">Enable Smart Personality</label>
+                <p class="ai-setting__hint">Route-aware system prompts with dialect mirroring and tone matching.</p>
+                <label class="ai-toggle">
+                  <input type="checkbox" id="setting-personality-enabled" checked>
+                  <span class="ai-toggle__slider"></span>
+                  <span class="ai-toggle__text" id="personality-toggle-text">Enabled</span>
+                </label>
+              </div>
+
+              <div class="ai-setting">
+                <label class="ai-setting__label">Dialect Mirroring</label>
+                <p class="ai-setting__hint">Mirror Northern Malay (Utara) dialect when detected. The AI will reply using casual Kedah–Penang expressions.</p>
+                <label class="ai-toggle">
+                  <input type="checkbox" id="setting-dialect-mirroring" checked>
+                  <span class="ai-toggle__slider"></span>
+                  <span class="ai-toggle__text" id="dialect-toggle-text">Enabled</span>
+                </label>
+              </div>
+
+              <div class="ai-setting">
+                <label class="ai-setting__label">Smalltalk Stabilizer</label>
+                <p class="ai-setting__hint">Prevents overcompensation of dialect tokens in casual greetings. The AI mirrors max 1–2 dialect words per reply.</p>
+                <label class="ai-toggle">
+                  <input type="checkbox" id="setting-stabilizer-enabled" checked>
+                  <span class="ai-toggle__slider"></span>
+                  <span class="ai-toggle__text" id="stabilizer-toggle-text">Enabled</span>
+                </label>
+              </div>
+
+              <div class="ai-setting">
+                <label class="ai-setting__label">Dialect Mirroring Level</label>
+                <p class="ai-setting__hint">How much dialect the AI uses: off = standard BM only, light = 1–2 words, medium = natural mix.</p>
+                <select class="ai-setting__select" id="setting-dialect-level">
+                  <option value="off">Off — Standard BM Only</option>
+                  <option value="light" selected>Light — 1–2 dialect words</option>
+                  <option value="medium">Medium — Natural mix</option>
+                </select>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Smalltalk Tokens</label>
+                  <p class="ai-setting__hint">Max tokens for casual greetings.</p>
+                  <input type="number" class="ai-setting__input" id="setting-smalltalk-tokens" value="256" min="64" max="1024" step="64">
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">General Tokens</label>
+                  <p class="ai-setting__hint">Max tokens for general chat.</p>
+                  <input type="number" class="ai-setting__input" id="setting-general-tokens" value="1024" min="256" max="4096" step="256">
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Task Tokens</label>
+                  <p class="ai-setting__hint">Max tokens for structured tasks.</p>
+                  <input type="number" class="ai-setting__input" id="setting-task-tokens" value="2048" min="512" max="8192" step="256">
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Web Research Section ──────────────────── -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+              <h3 style="font-size: .9rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">🚦 Guest Limits</h3>
+              <p class="ai-setting__hint" style="margin-bottom: 14px;">Control usage limits for unauthenticated visitors. Set to 0 to disable the limit.</p>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Chats / Day</label>
+                  <p class="ai-setting__hint">Max daily chat messages for guests.</p>
+                  <input type="number" class="ai-setting__input" id="setting-guest-chat-day" value="50" min="0" max="500">
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Docs / Day</label>
+                  <p class="ai-setting__hint">Max document uploads per day for guests.</p>
+                  <input type="number" class="ai-setting__input" id="setting-guest-doc-day" value="5" min="0" max="100">
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Images / Day</label>
+                  <p class="ai-setting__hint">Max image generations per day for guests.</p>
+                  <input type="number" class="ai-setting__input" id="setting-guest-image-day" value="3" min="0" max="100">
+                </div>
+              </div>
+
+              <div class="ai-setting" style="margin-top: 12px;">
+                <label class="ai-setting__label">Suggest Register After N Chats</label>
+                <p class="ai-setting__hint">Show registration prompt after this many chats. Set 0 to disable.</p>
+                <input type="number" class="ai-setting__input" id="setting-guest-register-n" value="5" min="0" max="100">
+              </div>
+            </div>
+
+            <!-- ── Document Limits Section ───────────────── -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+              <h3 style="font-size: .9rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">📄 Document Limits</h3>
+              <p class="ai-setting__hint" style="margin-bottom: 14px;">File upload and processing limits for document analysis.</p>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Max File Size (MB)</label>
+                  <p class="ai-setting__hint">Maximum upload size in megabytes.</p>
+                  <input type="number" class="ai-setting__input" id="setting-max-file-mb" value="20" min="1" max="100">
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">PDF Pages (Guest)</label>
+                  <p class="ai-setting__hint">Max PDF pages for guest users.</p>
+                  <input type="number" class="ai-setting__input" id="setting-pdf-pages-guest" value="5" min="1" max="50">
+                </div>
+                <div class="ai-setting">
+                  <label class="ai-setting__label">PDF Pages (Registered)</label>
+                  <p class="ai-setting__hint">Max PDF pages for registered users.</p>
+                  <input type="number" class="ai-setting__input" id="setting-pdf-pages-registered" value="15" min="1" max="100">
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Web Research Section ──────────────────── -->
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+              <h3 style="font-size: .9rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">🌐 Web Research</h3>
+              <p class="ai-setting__hint" style="margin-bottom: 14px;">Allow the AI to search the web and fetch pages to answer time-sensitive questions with citations. Auto-detects when browsing is needed based on keywords.</p>
+
+              <div class="ai-setting">
+                <label class="ai-setting__label">Enable Web Research</label>
+                <p class="ai-setting__hint">When enabled, the AI will automatically search the web for real-time information.</p>
+                <label class="ai-toggle">
+                  <input type="checkbox" id="setting-web-enabled">
+                  <span class="ai-toggle__slider"></span>
+                  <span class="ai-toggle__text" id="web-toggle-text">Disabled</span>
+                </label>
+              </div>
+
+              <div id="web-research-details">
+                <div class="ai-setting">
+                  <label class="ai-setting__label">Search Provider</label>
+                  <p class="ai-setting__hint">Which search engine to use for queries.</p>
+                  <select class="ai-setting__select" id="setting-web-provider">
+                    <option value="searxng">SearXNG (self-hosted)</option>
+                    <option value="tavily">Tavily API</option>
+                    <option value="serpapi">SerpAPI (Google)</option>
+                  </select>
+                </div>
+
+                <div class="ai-setting" id="web-searxng-url-setting">
+                  <label class="ai-setting__label">SearXNG URL</label>
+                  <p class="ai-setting__hint">Internal URL of your SearXNG instance.</p>
+                  <input type="text" class="ai-setting__input" id="setting-web-searxng-url" value="http://searxng:8080" placeholder="http://searxng:8080">
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                  <div class="ai-setting">
+                    <label class="ai-setting__label">Max Sources</label>
+                    <p class="ai-setting__hint">Maximum sources included in AI context (1–10).</p>
+                    <input type="number" class="ai-setting__input" id="setting-web-max-sources" value="4" min="1" max="10">
+                  </div>
+                  <div class="ai-setting">
+                    <label class="ai-setting__label">Max Fetch / Request</label>
+                    <p class="ai-setting__hint">Maximum pages to fetch per query (1–10).</p>
+                    <input type="number" class="ai-setting__input" id="setting-web-max-fetch" value="4" min="1" max="10">
+                  </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px;">
+                  <div class="ai-setting">
+                    <label class="ai-setting__label">Cache TTL (min)</label>
+                    <p class="ai-setting__hint">How long cached results remain valid.</p>
+                    <input type="number" class="ai-setting__input" id="setting-web-cache-ttl" value="30" min="1" max="999">
+                  </div>
+                  <div class="ai-setting">
+                    <label class="ai-setting__label">Timeout / Page (sec)</label>
+                    <p class="ai-setting__hint">Max time to fetch each page.</p>
+                    <input type="number" class="ai-setting__input" id="setting-web-timeout" value="8" min="1" max="30">
+                  </div>
+                </div>
+
+                <div class="ai-setting" style="margin-top:12px;">
+                  <label class="ai-setting__label">Allowed Domains</label>
+                  <p class="ai-setting__hint">Comma-separated allowlist. Leave empty to allow all.</p>
+                  <input type="text" class="ai-setting__input" id="setting-web-allowed" value="" placeholder="example.com, trusted.org">
+                </div>
+
+                <div class="ai-setting" style="margin-top:12px;">
+                  <label class="ai-setting__label">Blocked Domains</label>
+                  <p class="ai-setting__hint">Comma-separated blocklist. Internal IPs always blocked.</p>
+                  <input type="text" class="ai-setting__input" id="setting-web-blocked" value="localhost,127.0.0.1" placeholder="spam.com, ads.net">
+                </div>
+              </div>
+            </div>
+
             <div style="margin-top: 16px;">
               <button class="btn btn--primary btn--sm" id="save-ai-settings">Save AI Settings</button>
               <span class="ai-settings__status" id="settings-status"></span>
@@ -283,6 +487,14 @@
                 <p class="admin-svc-card__desc">Android SMS Gateway · multi-tenant</p>
               </div>
               <span class="badge badge--checking" data-service="sms"><span class="badge__dot badge__dot--pulse"></span>Checking</span>
+            </a>
+            <a href="https://mail.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
+              <div class="admin-svc-card__icon">📧</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Mail Server</h3>
+                <p class="admin-svc-card__desc">Mailcow · self-hosted SMTP/IMAP</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>Self-hosted</span>
             </a>
           </div>
         </div>
@@ -365,6 +577,14 @@
               <div class="admin-svc-card__body">
                 <h3 class="admin-svc-card__title">Prometheus</h3>
                 <p class="admin-svc-card__desc">Metrics collection &amp; alerting</p>
+              </div>
+              <span class="badge badge--ok"><span class="badge__dot"></span>CF Protected</span>
+            </a>
+            <a href="https://analytics.getouch.co" target="_blank" rel="noopener" class="admin-svc-card">
+              <div class="admin-svc-card__icon">📉</div>
+              <div class="admin-svc-card__body">
+                <h3 class="admin-svc-card__title">Umami</h3>
+                <p class="admin-svc-card__desc">Web analytics · privacy-first · self-hosted</p>
               </div>
               <span class="badge badge--ok"><span class="badge__dot"></span>CF Protected</span>
             </a>
@@ -468,64 +688,119 @@
                 <div class="health-item__url">grafana.getouch.co</div>
               </div>
             </a>
+            <a href="https://analytics.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">Umami Analytics</div>
+                <div class="health-item__url">analytics.getouch.co</div>
+              </div>
+            </a>
+            <a href="https://mail.getouch.co" target="_blank" rel="noopener" class="health-item health-item--link">
+              <div class="health-item__dot health-item__dot--ok"></div>
+              <div class="health-item__info">
+                <div class="health-item__name" style="color:var(--accent)">Mailcow</div>
+                <div class="health-item__url">mail.getouch.co</div>
+              </div>
+            </a>
           </div>
         </div>
 
-        <!-- Email Forwarding -->
+        <!-- Mail Server (Mailcow) -->
         <div class="ops-section">
-          <h2 class="ops-section__title">📧 Email Forwarding</h2>
+          <h2 class="ops-section__title">📧 Mail Server</h2>
           <div class="ops-card">
-            <div class="info-box" style="border-left-color: var(--blue);">
-              <div class="info-box__title">Cloudflare Email Routing</div>
+            <div class="info-box" style="border-left-color: var(--green);">
+              <div class="info-box__title">Mailcow — Self-Hosted Mail (72.62.253.182)</div>
               <p class="info-box__text">
-                Email forwarding for <strong>@getouch.co</strong> is managed via Cloudflare Email Routing.
-                Create custom addresses (e.g. support@getouch.co → your-inbox@gmail.com) and catch-all rules.
+                Full mail infrastructure for <strong>@getouch.co</strong> — SMTP, IMAP, webmail, antispam (Rspamd), DKIM signing.
+                Running as Docker containers on the mail VPS. Admin UI at <strong>mail.getouch.co</strong>.
               </p>
             </div>
             <div class="ops-links" style="margin-top:12px;">
-              <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/email/routing/routes" target="_blank" rel="noopener" class="ops-link">
-                <span class="ops-link__label">📧 Manage Email Routes</span>
-                <span class="ops-link__url">Cloudflare Dashboard → Email Routing</span>
-                <span class="badge badge--access">CF Dashboard</span>
-              </a>
-              <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/email/routing/catch-all" target="_blank" rel="noopener" class="ops-link">
-                <span class="ops-link__label">📨 Catch-All Rules</span>
-                <span class="ops-link__url">Configure catch-all email forwarding</span>
-                <span class="badge badge--access">CF Dashboard</span>
+              <a href="https://mail.getouch.co" target="_blank" rel="noopener" class="ops-link">
+                <span class="ops-link__label">📧 Mailcow Admin UI</span>
+                <span class="ops-link__url">mail.getouch.co — domain, mailbox &amp; alias management</span>
+                <span class="badge badge--ok"><span class="badge__dot"></span>Self-hosted</span>
               </a>
               <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/dns" target="_blank" rel="noopener" class="ops-link">
                 <span class="ops-link__label">🌐 DNS Records</span>
-                <span class="ops-link__url">Manage DNS for getouch.co</span>
+                <span class="ops-link__url">Cloudflare DNS — MX, SPF, DKIM, DMARC</span>
                 <span class="badge badge--access">CF Dashboard</span>
+              </a>
+              <a href="https://dash.cloudflare.com/?to=/:account/getouch.co/email/routing/routes" target="_blank" rel="noopener" class="ops-link">
+                <span class="ops-link__label">📨 Legacy Email Routing</span>
+                <span class="ops-link__url">Cloudflare Email Routing (disabled after cutover)</span>
+                <span class="badge badge--tailscale">Legacy</span>
               </a>
             </div>
             <div style="margin-top:12px; padding:12px 16px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);">
               <p style="font-size:.78rem; color:var(--text-muted); margin-bottom:8px;">
-                <strong>Current forwarding setup:</strong>
+                <strong>Mailboxes &amp; Aliases:</strong>
               </p>
               <table style="width:100%; font-size:.75rem; color:var(--text-muted); border-collapse:collapse;">
                 <thead>
                   <tr style="border-bottom:1px solid var(--border);">
-                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">From</th>
-                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">To</th>
+                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">Address</th>
+                    <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">Type</th>
                     <th style="text-align:left; padding:6px 8px; color:var(--text-dim); font-weight:600;">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr style="border-bottom:1px solid var(--border);">
                     <td style="padding:6px 8px; font-family:var(--font-mono);">admin@getouch.co</td>
-                    <td style="padding:6px 8px;">→ Primary inbox</td>
+                    <td style="padding:6px 8px;">Mailbox (IMAP/SMTP)</td>
+                    <td style="padding:6px 8px;"><span class="badge badge--ok" style="font-size:.65rem;"><span class="badge__dot"></span>Active</span></td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px; font-family:var(--font-mono);">support@getouch.co</td>
+                    <td style="padding:6px 8px;">Mailbox (IMAP/SMTP)</td>
                     <td style="padding:6px 8px;"><span class="badge badge--ok" style="font-size:.65rem;"><span class="badge__dot"></span>Active</span></td>
                   </tr>
                   <tr style="border-bottom:1px solid var(--border);">
                     <td style="padding:6px 8px; font-family:var(--font-mono);">noreply@getouch.co</td>
-                    <td style="padding:6px 8px;">→ SMTP (outbound only)</td>
+                    <td style="padding:6px 8px;">Alias → admin@getouch.co</td>
                     <td style="padding:6px 8px;"><span class="badge badge--ok" style="font-size:.65rem;"><span class="badge__dot"></span>Active</span></td>
                   </tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:12px; padding:12px 16px; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);">
+              <p style="font-size:.78rem; color:var(--text-muted); margin-bottom:8px;">
+                <strong>DNS Records (Cloudflare — grey-cloud / DNS only):</strong>
+              </p>
+              <table style="width:100%; font-size:.72rem; color:var(--text-muted); border-collapse:collapse; font-family:var(--font-mono);">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="text-align:left; padding:4px 6px; color:var(--text-dim); font-weight:600;">Type</th>
+                    <th style="text-align:left; padding:4px 6px; color:var(--text-dim); font-weight:600;">Name</th>
+                    <th style="text-align:left; padding:4px 6px; color:var(--text-dim); font-weight:600;">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px 6px;">A</td>
+                    <td style="padding:4px 6px;">mail</td>
+                    <td style="padding:4px 6px;">72.62.253.182</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px 6px;">MX</td>
+                    <td style="padding:4px 6px;">@</td>
+                    <td style="padding:4px 6px;">mail.getouch.co (priority 10)</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px 6px;">TXT</td>
+                    <td style="padding:4px 6px;">@</td>
+                    <td style="padding:4px 6px;">v=spf1 a mx ip4:72.62.253.182 ~all</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px 6px;">TXT</td>
+                    <td style="padding:4px 6px;">dkim._domainkey</td>
+                    <td style="padding:4px 6px; word-break:break-all;">v=DKIM1;k=rsa;t=s;s=email;p=...</td>
+                  </tr>
                   <tr>
-                    <td style="padding:6px 8px; font-family:var(--font-mono);">*@getouch.co</td>
-                    <td style="padding:6px 8px;">→ Catch-all (if configured)</td>
-                    <td style="padding:6px 8px;"><span class="badge badge--tailscale" style="font-size:.65rem;">Check CF</span></td>
+                    <td style="padding:4px 6px;">TXT</td>
+                    <td style="padding:4px 6px;">_dmarc</td>
+                    <td style="padding:4px 6px;">v=DMARC1; p=none; rua=mailto:admin@getouch.co</td>
                   </tr>
                 </tbody>
               </table>
@@ -554,8 +829,18 @@
                 <span class="badge badge--ok"><span class="badge__dot"></span>No login</span>
               </div>
               <div class="ops-link">
+                <span class="ops-link__label">Umami</span>
+                <span class="ops-link__url">Own auth (admin/umami default) · CF Access gate</span>
+                <span class="badge badge--access">Own Login</span>
+              </div>
+              <div class="ops-link">
                 <span class="ops-link__label">Coolify</span>
                 <span class="ops-link__url">Own Laravel auth · CF Access + own login</span>
+                <span class="badge badge--access">Own Login</span>
+              </div>
+              <div class="ops-link">
+                <span class="ops-link__label">Mailcow</span>
+                <span class="ops-link__url">Own admin UI · admin/moohoo (change on first login)</span>
                 <span class="badge badge--access">Own Login</span>
               </div>
             </div>
@@ -582,7 +867,18 @@ docker compose -f docker-compose.apps.yml ps
 docker compose -f docker-compose.db.yml restart pgadmin
 
 # Check Caddy logs (for SSO header issues)
-docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
+docker compose logs caddy --tail 50 | grep -i "remote\|auth"
+
+# ── Mail Server (72.62.253.182) ──
+ssh -i ~/.ssh/id_ed25519 deploy@72.62.253.182
+cd /opt/mailcow-dockerized
+docker compose ps                    # container status
+docker compose logs -f --tail 100    # all mail logs
+docker compose logs postfix-mailcow --tail 50   # SMTP logs
+docker compose logs dovecot-mailcow --tail 50   # IMAP logs
+docker compose logs nginx-mailcow --tail 50     # webmail proxy
+docker compose restart               # restart all
+echo 'Turun@202020' | sudo -S certbot certificates  # check TLS</pre>
         </div>
 
       </div>
@@ -651,6 +947,161 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
             </table>
           </div>
           <div class="user-pagination" id="user-pagination" style="margin-top:12px;"></div>
+        </div>
+
+      </div>
+
+      <!-- ════════════════════════════════════════════════════
+           Tab 6: Reporting
+           ════════════════════════════════════════════════════ -->
+      <div class="admin-panel" id="panel-reporting" role="tabpanel">
+
+        <!-- Time Range Selector -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+          <span style="font-size:.8rem;color:var(--text-muted);font-weight:600;">Period:</span>
+          <button class="btn btn--ghost btn--sm rpt-range active" data-days="1" style="padding:4px 12px;font-size:.75rem;">Today</button>
+          <button class="btn btn--ghost btn--sm rpt-range" data-days="7" style="padding:4px 12px;font-size:.75rem;">7 Days</button>
+          <button class="btn btn--ghost btn--sm rpt-range" data-days="30" style="padding:4px 12px;font-size:.75rem;">30 Days</button>
+          <button class="btn btn--ghost btn--sm rpt-range" data-days="90" style="padding:4px 12px;font-size:.75rem;">90 Days</button>
+          <button class="btn btn--ghost btn--sm" id="rpt-refresh" style="padding:4px 12px;font-size:.75rem;margin-left:auto;">↻ Refresh</button>
+        </div>
+
+        <!-- Summary KPI Cards -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Overview</h2>
+          <div class="user-stats-grid" id="rpt-summary-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));">
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-total-events">—</div>
+              <div class="user-stat-card__label">Total Events</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-total-chats">—</div>
+              <div class="user-stat-card__label">Chats</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-total-images">—</div>
+              <div class="user-stat-card__label">Images</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-unique-visitors">—</div>
+              <div class="user-stat-card__label">Visitors</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-registered-users">—</div>
+              <div class="user-stat-card__label">Registered</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-guest-events">—</div>
+              <div class="user-stat-card__label">Guest Events</div>
+            </div>
+            <div class="user-stat-card">
+              <div class="user-stat-card__value" id="rpt-tokens-total">—</div>
+              <div class="user-stat-card__label">Tokens (in+out)</div>
+            </div>
+          </div>
+
+          <!-- Today mini-row -->
+          <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap;" id="rpt-today-row">
+            <span style="font-size:.75rem;color:var(--text-muted);">Today: <strong id="rpt-today-chats">—</strong> chats · <strong id="rpt-today-images">—</strong> images · <strong id="rpt-today-visitors">—</strong> visitors</span>
+          </div>
+        </div>
+
+        <!-- Daily Chart -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Daily Activity</h2>
+          <div id="rpt-chart" style="display:flex;align-items:flex-end;gap:2px;height:180px;padding:8px 0;overflow-x:auto;"></div>
+          <div id="rpt-chart-labels" style="display:flex;gap:2px;font-size:.6rem;color:var(--text-dim);overflow-x:auto;"></div>
+          <div style="display:flex;gap:16px;margin-top:8px;">
+            <span style="font-size:.7rem;display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:var(--accent);display:inline-block;"></span> Chats</span>
+            <span style="font-size:.7rem;display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#f59e0b;display:inline-block;"></span> Images</span>
+          </div>
+        </div>
+
+        <!-- Breakdown Section -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Breakdown</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+
+            <!-- By Mode -->
+            <div>
+              <h3 style="font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">By Mode</h3>
+              <div id="rpt-by-mode" style="font-size:.78rem;color:var(--text-muted);">Loading…</div>
+            </div>
+
+            <!-- By Model -->
+            <div>
+              <h3 style="font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">By Model</h3>
+              <div id="rpt-by-model" style="font-size:.78rem;color:var(--text-muted);">Loading…</div>
+            </div>
+          </div>
+
+          <!-- Error Rate -->
+          <div style="margin-top:16px;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);">
+            <span style="font-size:.78rem;color:var(--text-muted);">Error rate: <strong id="rpt-error-rate">—</strong></span>
+          </div>
+        </div>
+
+        <!-- Top Visitors -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Top Visitors</h2>
+          <div style="overflow-x:auto;">
+            <table class="user-table" style="font-size:.78rem;">
+              <thead>
+                <tr>
+                  <th>Visitor</th>
+                  <th>Type</th>
+                  <th>Chats</th>
+                  <th>Images</th>
+                  <th>Total</th>
+                  <th>First Seen</th>
+                  <th>Last Active</th>
+                </tr>
+              </thead>
+              <tbody id="rpt-visitors-body">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:24px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Guest Limits Config -->
+        <div class="ops-section">
+          <h2 class="ops-section__title">Guest Limits</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="ai-setting">
+              <label class="ai-setting__label">Chat / Hour</label>
+              <p class="ai-setting__hint">Max chat messages per hour for anonymous guests.</p>
+              <input type="number" class="ai-setting__input" id="rpt-guest-chat-hour" value="20" min="1" max="1000">
+            </div>
+            <div class="ai-setting">
+              <label class="ai-setting__label">Images / Day</label>
+              <p class="ai-setting__hint">Max image generations per day for guests.</p>
+              <input type="number" class="ai-setting__input" id="rpt-guest-images-day" value="3" min="0" max="1000">
+            </div>
+            <div class="ai-setting">
+              <label class="ai-setting__label">Soft Gate after Chats</label>
+              <p class="ai-setting__hint">Show registration prompt after N guest chats.</p>
+              <input type="number" class="ai-setting__input" id="rpt-gate-chats" value="5" min="1" max="100">
+            </div>
+            <div class="ai-setting">
+              <label class="ai-setting__label">Soft Gate after Images</label>
+              <p class="ai-setting__hint">Show registration prompt after N guest images.</p>
+              <input type="number" class="ai-setting__input" id="rpt-gate-images" value="2" min="0" max="100">
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+            <span style="font-size:.75rem;color:var(--text-muted);">
+              Active guests (1h): <strong id="rpt-active-guests">—</strong> ·
+              Guest chats (1h): <strong id="rpt-guest-chats-1h">—</strong> ·
+              Guest images (today): <strong id="rpt-guest-images-today">—</strong>
+            </span>
+          </div>
+
+          <div style="margin-top:12px;">
+            <button class="btn btn--primary btn--sm" id="rpt-save-guest">Save Guest Limits</button>
+            <span class="ai-settings__status" id="rpt-guest-status"></span>
+          </div>
         </div>
 
       </div>
@@ -833,6 +1284,7 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
     var visionSelect = document.getElementById('setting-vision-model');
     var imageToggle  = document.getElementById('setting-enable-image');
     var toggleText   = document.getElementById('toggle-text');
+    var imageEngine  = document.getElementById('setting-image-engine');
     var maxImagesProd = document.getElementById('setting-max-images-prod');
     var maxImagesDev  = document.getElementById('setting-max-images-dev');
     var rateChatProd  = document.getElementById('setting-rate-chat-prod');
@@ -883,6 +1335,43 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
     var typingAdpText  = document.getElementById('typing-adaptive-text');
     var typingDetails  = document.getElementById('typing-detail-settings');
 
+    // Web research settings elements
+    var webEnabled    = document.getElementById('setting-web-enabled');
+    var webTogText    = document.getElementById('web-toggle-text');
+    var webProvider   = document.getElementById('setting-web-provider');
+    var webSearxUrl   = document.getElementById('setting-web-searxng-url');
+    var webSearxSetting = document.getElementById('web-searxng-url-setting');
+    var webMaxSources = document.getElementById('setting-web-max-sources');
+    var webMaxFetch   = document.getElementById('setting-web-max-fetch');
+    var webCacheTtl   = document.getElementById('setting-web-cache-ttl');
+    var webTimeout    = document.getElementById('setting-web-timeout');
+    var webAllowed    = document.getElementById('setting-web-allowed');
+    var webBlocked    = document.getElementById('setting-web-blocked');
+    var webDetails    = document.getElementById('web-research-details');
+
+    // Personality & routing elements
+    var personalityEnabled = document.getElementById('setting-personality-enabled');
+    var personalityTogText = document.getElementById('personality-toggle-text');
+    var dialectEnabled     = document.getElementById('setting-dialect-mirroring');
+    var dialectTogText     = document.getElementById('dialect-toggle-text');
+    var stabilizerEnabled  = document.getElementById('setting-stabilizer-enabled');
+    var stabilizerTogText  = document.getElementById('stabilizer-toggle-text');
+    var dialectLevel       = document.getElementById('setting-dialect-level');
+    var smalltalkTokens    = document.getElementById('setting-smalltalk-tokens');
+    var generalTokens      = document.getElementById('setting-general-tokens');
+    var taskTokens         = document.getElementById('setting-task-tokens');
+
+    // Guest limits elements
+    var guestChatDay     = document.getElementById('setting-guest-chat-day');
+    var guestDocDay      = document.getElementById('setting-guest-doc-day');
+    var guestImageDay    = document.getElementById('setting-guest-image-day');
+    var guestRegisterN   = document.getElementById('setting-guest-register-n');
+
+    // Document limits elements
+    var maxFileMb          = document.getElementById('setting-max-file-mb');
+    var pdfPagesGuest      = document.getElementById('setting-pdf-pages-guest');
+    var pdfPagesRegistered = document.getElementById('setting-pdf-pages-registered');
+
     // Load current settings
     function loadSettings() {
       fetch('/v1/admin/settings')
@@ -896,6 +1385,7 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
             imageToggle.checked = !!s['ai.enable_image'];
             toggleText.textContent = imageToggle.checked ? 'Enabled' : 'Disabled';
           }
+          if (s['ai.default_image_engine']) imageEngine.value = s['ai.default_image_engine'];
           if (s['ai.image.max_per_day_free.prod'] !== undefined) maxImagesProd.value = s['ai.image.max_per_day_free.prod'];
           if (s['ai.image.max_per_day_free.dev'] !== undefined) maxImagesDev.value = s['ai.image.max_per_day_free.dev'];
           if (s['rate_limit.chat.prod'] !== undefined) rateChatProd.value = s['rate_limit.chat.prod'];
@@ -914,6 +1404,53 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
             typingAdaptive.checked = !!s['typing.adaptive_catchup'];
             typingAdpText.textContent = typingAdaptive.checked ? 'Enabled' : 'Disabled';
           }
+          // Web research settings
+          if (s['web_research.enabled'] !== undefined) {
+            var webOn = s['web_research.enabled'] === true || s['web_research.enabled'] === 'true';
+            webEnabled.checked = webOn;
+            webTogText.textContent = webOn ? 'Enabled' : 'Disabled';
+            webDetails.style.display = webOn ? '' : 'none';
+          }
+          if (s['web_research.search_provider']) webProvider.value = s['web_research.search_provider'];
+          if (s['web_research.searxng_url']) webSearxUrl.value = s['web_research.searxng_url'];
+          if (s['web_research.max_sources'] !== undefined) webMaxSources.value = s['web_research.max_sources'];
+          if (s['web_research.max_fetch'] !== undefined) webMaxFetch.value = s['web_research.max_fetch'];
+          if (s['web_research.cache_ttl_minutes'] !== undefined) webCacheTtl.value = s['web_research.cache_ttl_minutes'];
+          if (s['web_research.timeout_seconds'] !== undefined) webTimeout.value = s['web_research.timeout_seconds'];
+          if (s['web_research.allowed_domains'] !== undefined) webAllowed.value = s['web_research.allowed_domains'];
+          if (s['web_research.blocked_domains'] !== undefined) webBlocked.value = s['web_research.blocked_domains'];
+          // Show/hide SearXNG URL based on provider
+          webSearxSetting.style.display = webProvider.value === 'searxng' ? '' : 'none';
+          // Personality & routing settings
+          if (s['ai.personality_enabled'] !== undefined) {
+            var pOn = s['ai.personality_enabled'] === true || s['ai.personality_enabled'] === 'true';
+            personalityEnabled.checked = pOn;
+            personalityTogText.textContent = pOn ? 'Enabled' : 'Disabled';
+          }
+          if (s['ai.dialect_mirroring'] !== undefined) {
+            var dOn = s['ai.dialect_mirroring'] === true || s['ai.dialect_mirroring'] === 'true';
+            dialectEnabled.checked = dOn;
+            dialectTogText.textContent = dOn ? 'Enabled' : 'Disabled';
+          }
+          if (s['ai.smalltalk_max_tokens'] !== undefined) smalltalkTokens.value = s['ai.smalltalk_max_tokens'];
+          if (s['ai.general_max_tokens'] !== undefined) generalTokens.value = s['ai.general_max_tokens'];
+          if (s['ai.task_max_tokens'] !== undefined) taskTokens.value = s['ai.task_max_tokens'];
+          // Stabilizer & dialect level
+          if (s['ai.smalltalk_stabilizer'] !== undefined) {
+            var stOn = s['ai.smalltalk_stabilizer'] === true || s['ai.smalltalk_stabilizer'] === 'true';
+            stabilizerEnabled.checked = stOn;
+            stabilizerTogText.textContent = stOn ? 'Enabled' : 'Disabled';
+          }
+          if (s['ai.dialect_mirroring_level']) dialectLevel.value = s['ai.dialect_mirroring_level'];
+          // Guest limits
+          if (s['guest.chat_per_day'] !== undefined) guestChatDay.value = s['guest.chat_per_day'];
+          if (s['guest.doc_per_day'] !== undefined) guestDocDay.value = s['guest.doc_per_day'];
+          if (s['guest.image_per_day'] !== undefined) guestImageDay.value = s['guest.image_per_day'];
+          if (s['guest.require_register_after_n'] !== undefined) guestRegisterN.value = s['guest.require_register_after_n'];
+          // Document limits
+          if (s['limits.max_file_size_mb'] !== undefined) maxFileMb.value = s['limits.max_file_size_mb'];
+          if (s['limits.max_pdf_pages_guest'] !== undefined) pdfPagesGuest.value = s['limits.max_pdf_pages_guest'];
+          if (s['limits.max_pdf_pages_registered'] !== undefined) pdfPagesRegistered.value = s['limits.max_pdf_pages_registered'];
         })
         .catch(function() {});
     }
@@ -931,6 +1468,26 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
       typingAdpText.textContent = this.checked ? 'Enabled' : 'Disabled';
     });
 
+    // Web research toggle handlers
+    webEnabled.addEventListener('change', function() {
+      webTogText.textContent = this.checked ? 'Enabled' : 'Disabled';
+      webDetails.style.display = this.checked ? '' : 'none';
+    });
+    webProvider.addEventListener('change', function() {
+      webSearxSetting.style.display = this.value === 'searxng' ? '' : 'none';
+    });
+
+    // Personality toggle handlers
+    personalityEnabled.addEventListener('change', function() {
+      personalityTogText.textContent = this.checked ? 'Enabled' : 'Disabled';
+    });
+    dialectEnabled.addEventListener('change', function() {
+      dialectTogText.textContent = this.checked ? 'Enabled' : 'Disabled';
+    });
+    stabilizerEnabled.addEventListener('change', function() {
+      stabilizerTogText.textContent = this.checked ? 'Enabled' : 'Disabled';
+    });
+
     // Save settings
     saveBtn.addEventListener('click', function() {
       statusEl.textContent = 'Saving...';
@@ -940,6 +1497,7 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         { key: 'ai.default_text_model', value: modelSelect.value },
         { key: 'ai.default_vision_model', value: visionSelect.value },
         { key: 'ai.enable_image', value: imageToggle.checked },
+        { key: 'ai.default_image_engine', value: imageEngine.value },
         { key: 'ai.image.max_per_day_free.prod', value: parseInt(maxImagesProd.value, 10) },
         { key: 'ai.image.max_per_day_free.dev', value: parseInt(maxImagesDev.value, 10) },
         { key: 'rate_limit.chat.prod', value: parseInt(rateChatProd.value, 10) },
@@ -950,6 +1508,33 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         { key: 'typing.mode', value: typingMode.value },
         { key: 'typing.speed', value: parseInt(typingSpeed.value, 10) },
         { key: 'typing.adaptive_catchup', value: typingAdaptive.checked },
+        // Web research
+        { key: 'web_research.enabled', value: webEnabled.checked },
+        { key: 'web_research.search_provider', value: webProvider.value },
+        { key: 'web_research.searxng_url', value: webSearxUrl.value.trim() },
+        { key: 'web_research.max_sources', value: parseInt(webMaxSources.value, 10) },
+        { key: 'web_research.max_fetch', value: parseInt(webMaxFetch.value, 10) },
+        { key: 'web_research.cache_ttl_minutes', value: parseInt(webCacheTtl.value, 10) },
+        { key: 'web_research.timeout_seconds', value: parseInt(webTimeout.value, 10) },
+        { key: 'web_research.allowed_domains', value: webAllowed.value.trim() },
+        { key: 'web_research.blocked_domains', value: webBlocked.value.trim() },
+        // Personality & routing
+        { key: 'ai.personality_enabled', value: personalityEnabled.checked },
+        { key: 'ai.dialect_mirroring', value: dialectEnabled.checked },
+        { key: 'ai.smalltalk_stabilizer', value: stabilizerEnabled.checked },
+        { key: 'ai.dialect_mirroring_level', value: dialectLevel.value },
+        { key: 'ai.smalltalk_max_tokens', value: parseInt(smalltalkTokens.value, 10) },
+        { key: 'ai.general_max_tokens', value: parseInt(generalTokens.value, 10) },
+        { key: 'ai.task_max_tokens', value: parseInt(taskTokens.value, 10) },
+        // Guest limits
+        { key: 'guest.chat_per_day', value: parseInt(guestChatDay.value, 10) },
+        { key: 'guest.doc_per_day', value: parseInt(guestDocDay.value, 10) },
+        { key: 'guest.image_per_day', value: parseInt(guestImageDay.value, 10) },
+        { key: 'guest.require_register_after_n', value: parseInt(guestRegisterN.value, 10) },
+        // Document limits
+        { key: 'limits.max_file_size_mb', value: parseInt(maxFileMb.value, 10) },
+        { key: 'limits.max_pdf_pages_guest', value: parseInt(pdfPagesGuest.value, 10) },
+        { key: 'limits.max_pdf_pages_registered', value: parseInt(pdfPagesRegistered.value, 10) },
       ];
 
       Promise.all(updates.map(function(u) {
@@ -1121,6 +1706,285 @@ docker compose logs caddy --tail 50 | grep -i "remote\|auth"</pre>
         usersLoaded = true;
       }
     }
+  })();
+  </script>
+
+  <!-- ── Reporting Tab JS ──────────────────────────────── -->
+  <script>
+  (function() {
+    'use strict';
+
+    var rptDays = 7;
+    var rptLoaded = false;
+
+    /* ── Helpers ────────────────────────────────────────── */
+    function fmtNum(n) {
+      if (n === null || n === undefined || n === '—') return '—';
+      n = Number(n);
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    function fmtDate(d) {
+      if (!d) return '—';
+      var dt = new Date(d);
+      return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    }
+
+    function fmtDateTime(d) {
+      if (!d) return '—';
+      var dt = new Date(d);
+      return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    /* ── Range buttons ─────────────────────────────────── */
+    var rangeButtons = document.querySelectorAll('.rpt-range');
+    rangeButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        rangeButtons.forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        rptDays = parseInt(btn.dataset.days, 10);
+        loadAllReporting();
+      });
+    });
+
+    document.getElementById('rpt-refresh').addEventListener('click', function() {
+      loadAllReporting();
+    });
+
+    /* ── Load all reporting data ───────────────────────── */
+    function loadAllReporting() {
+      loadSummary();
+      loadDaily();
+      loadBreakdown();
+      loadTopVisitors();
+      loadGuestLimits();
+    }
+
+    /* ── Summary KPIs ──────────────────────────────────── */
+    function loadSummary() {
+      fetch('/v1/admin/reporting/summary?days=' + rptDays)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          document.getElementById('rpt-total-events').textContent = fmtNum(d.total_events);
+          document.getElementById('rpt-total-chats').textContent = fmtNum(d.total_chats);
+          document.getElementById('rpt-total-images').textContent = fmtNum(d.total_images);
+          document.getElementById('rpt-unique-visitors').textContent = fmtNum(d.unique_visitors);
+          document.getElementById('rpt-registered-users').textContent = fmtNum(d.registered_users);
+          document.getElementById('rpt-guest-events').textContent = fmtNum(d.guest_events);
+          var totalTokens = (Number(d.total_tokens_in) || 0) + (Number(d.total_tokens_out) || 0);
+          document.getElementById('rpt-tokens-total').textContent = fmtNum(totalTokens);
+
+          document.getElementById('rpt-today-chats').textContent = d.chats_today;
+          document.getElementById('rpt-today-images').textContent = d.images_today;
+          document.getElementById('rpt-today-visitors').textContent = d.visitors_today;
+        })
+        .catch(function() {
+          document.getElementById('rpt-total-events').textContent = 'Err';
+        });
+    }
+
+    /* ── Daily Chart ───────────────────────────────────── */
+    function loadDaily() {
+      fetch('/v1/admin/reporting/daily?days=' + rptDays)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var chart = document.getElementById('rpt-chart');
+          var labels = document.getElementById('rpt-chart-labels');
+          var series = d.series || [];
+
+          if (series.length === 0) {
+            chart.innerHTML = '<span style="color:var(--text-dim);font-size:.8rem;padding:16px;">No data yet</span>';
+            labels.innerHTML = '';
+            return;
+          }
+
+          var maxVal = 1;
+          series.forEach(function(s) {
+            var t = (s.chats || 0) + (s.images || 0);
+            if (t > maxVal) maxVal = t;
+          });
+
+          var barWidth = Math.max(8, Math.floor(chart.offsetWidth / series.length) - 3);
+
+          chart.innerHTML = series.map(function(s) {
+            var chats = s.chats || 0;
+            var images = s.images || 0;
+            var total = chats + images;
+            var chatH = Math.max(1, Math.round((chats / maxVal) * 160));
+            var imgH = Math.round((images / maxVal) * 160);
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:0;min-width:' + barWidth + 'px;" title="' + fmtDate(s.day) + ': ' + chats + ' chats, ' + images + ' images">' +
+              (imgH > 0 ? '<div style="width:100%;height:' + imgH + 'px;background:#f59e0b;border-radius:2px 2px 0 0;"></div>' : '') +
+              '<div style="width:100%;height:' + chatH + 'px;background:var(--accent);border-radius:' + (imgH > 0 ? '0' : '2px 2px') + ' 0 0;"></div>' +
+              '<span style="font-size:.55rem;color:var(--text-dim);margin-top:2px;">' + (total > 0 ? total : '') + '</span>' +
+              '</div>';
+          }).join('');
+
+          labels.innerHTML = series.map(function(s) {
+            var dt = new Date(s.day);
+            var lbl = dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+            return '<span style="min-width:' + barWidth + 'px;text-align:center;">' + (series.length <= 14 ? lbl : '') + '</span>';
+          }).join('');
+        })
+        .catch(function() {
+          document.getElementById('rpt-chart').innerHTML = '<span style="color:var(--red);font-size:.8rem;">Failed to load chart</span>';
+        });
+    }
+
+    /* ── Breakdown ─────────────────────────────────────── */
+    function loadBreakdown() {
+      fetch('/v1/admin/reporting/breakdown?days=' + rptDays)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          // By mode
+          var modeEl = document.getElementById('rpt-by-mode');
+          if (d.by_mode && d.by_mode.length > 0) {
+            modeEl.innerHTML = d.by_mode.map(function(m) {
+              return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);">' +
+                '<span>' + escapeHtml((m.event_type || '?') + ' → ' + (m.mode || 'n/a')) + '</span>' +
+                '<strong>' + m.count + '</strong></div>';
+            }).join('');
+          } else {
+            modeEl.innerHTML = '<span style="color:var(--text-dim);">No data</span>';
+          }
+
+          // By model
+          var modelEl = document.getElementById('rpt-by-model');
+          if (d.by_model && d.by_model.length > 0) {
+            modelEl.innerHTML = d.by_model.map(function(m) {
+              return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);">' +
+                '<span>' + escapeHtml(m.model) + '</span>' +
+                '<strong>' + m.count + '</strong></div>';
+            }).join('');
+          } else {
+            modelEl.innerHTML = '<span style="color:var(--text-dim);">No data</span>';
+          }
+
+          // Error rate
+          var e = d.errors || {};
+          var errRate = e.total > 0 ? ((e.error_count / e.total) * 100).toFixed(1) + '%' : '0%';
+          document.getElementById('rpt-error-rate').textContent = errRate + ' (' + (e.error_count || 0) + '/' + (e.total || 0) + ')';
+        })
+        .catch(function() {
+          document.getElementById('rpt-by-mode').innerHTML = '<span style="color:var(--red);">Failed</span>';
+        });
+    }
+
+    /* ── Top Visitors ──────────────────────────────────── */
+    function loadTopVisitors() {
+      fetch('/v1/admin/reporting/top-visitors?days=' + rptDays)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var tbody = document.getElementById('rpt-visitors-body');
+          var visitors = d.visitors || [];
+          if (visitors.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:24px;">No activity yet</td></tr>';
+            return;
+          }
+          tbody.innerHTML = visitors.map(function(v) {
+            var vid = v.visitor_id ? v.visitor_id.substring(0, 8) + '…' : '—';
+            var typeBadge = v.user_id
+              ? '<span class="badge badge--ok" style="font-size:.6rem;"><span class="badge__dot"></span>Registered</span>'
+              : '<span class="badge badge--access" style="font-size:.6rem;">Guest</span>';
+            return '<tr>' +
+              '<td style="font-family:var(--font-mono);font-size:.72rem;">' + escapeHtml(vid) + '</td>' +
+              '<td>' + typeBadge + '</td>' +
+              '<td style="text-align:center;">' + (v.chats || 0) + '</td>' +
+              '<td style="text-align:center;">' + (v.images || 0) + '</td>' +
+              '<td style="text-align:center;font-weight:600;">' + (v.total_events || 0) + '</td>' +
+              '<td style="font-size:.72rem;">' + fmtDateTime(v.first_seen) + '</td>' +
+              '<td style="font-size:.72rem;">' + fmtDateTime(v.last_seen) + '</td>' +
+              '</tr>';
+          }).join('');
+        })
+        .catch(function() {
+          document.getElementById('rpt-visitors-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--red);padding:24px;">Failed to load</td></tr>';
+        });
+    }
+
+    /* ── Guest Limits ──────────────────────────────────── */
+    function loadGuestLimits() {
+      fetch('/v1/admin/reporting/guest-limits')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var s = d.settings || {};
+          var chatHour = document.getElementById('rpt-guest-chat-hour');
+          var imagesDay = document.getElementById('rpt-guest-images-day');
+          var gateChats = document.getElementById('rpt-gate-chats');
+          var gateImages = document.getElementById('rpt-gate-images');
+
+          if (s['guest.chat_per_hour'] !== undefined) chatHour.value = s['guest.chat_per_hour'];
+          if (s['guest.images_per_day'] !== undefined) imagesDay.value = s['guest.images_per_day'];
+          if (s['guest.soft_gate_after_chats'] !== undefined) gateChats.value = s['guest.soft_gate_after_chats'];
+          if (s['guest.soft_gate_after_images'] !== undefined) gateImages.value = s['guest.soft_gate_after_images'];
+
+          document.getElementById('rpt-active-guests').textContent = d.active_guests || 0;
+          document.getElementById('rpt-guest-chats-1h').textContent = d.guest_chats_last_hour || 0;
+          document.getElementById('rpt-guest-images-today').textContent = d.guest_images_today || 0;
+        })
+        .catch(function() {});
+    }
+
+    /* ── Save guest limits ─────────────────────────────── */
+    document.getElementById('rpt-save-guest').addEventListener('click', function() {
+      var status = document.getElementById('rpt-guest-status');
+      status.textContent = 'Saving…';
+      status.style.color = 'var(--text-muted)';
+
+      var updates = [
+        { key: 'guest.chat_per_hour', value: parseInt(document.getElementById('rpt-guest-chat-hour').value, 10) },
+        { key: 'guest.images_per_day', value: parseInt(document.getElementById('rpt-guest-images-day').value, 10) },
+        { key: 'guest.soft_gate_after_chats', value: parseInt(document.getElementById('rpt-gate-chats').value, 10) },
+        { key: 'guest.soft_gate_after_images', value: parseInt(document.getElementById('rpt-gate-images').value, 10) },
+      ];
+
+      Promise.all(updates.map(function(u) {
+        return fetch('/v1/admin/settings/' + u.key, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: u.value }),
+        });
+      }))
+      .then(function() {
+        status.textContent = '✓ Saved';
+        status.style.color = 'var(--green, #22c55e)';
+        setTimeout(function() { status.textContent = ''; }, 2000);
+      })
+      .catch(function() {
+        status.textContent = '✗ Failed';
+        status.style.color = 'var(--red, #ef4444)';
+      });
+    });
+
+    /* ── Load on tab activate ──────────────────────────── */
+    var rptPanel = document.getElementById('panel-reporting');
+    if (rptPanel) {
+      var rptObserver = new MutationObserver(function() {
+        if (rptPanel.classList.contains('active') && !rptLoaded) {
+          rptLoaded = true;
+          loadAllReporting();
+        }
+      });
+      rptObserver.observe(rptPanel, { attributes: true, attributeFilter: ['class'] });
+      if (rptPanel.classList.contains('active')) {
+        rptLoaded = true;
+        loadAllReporting();
+      }
+    }
+
+    // If range changes, allow reload
+    rangeButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() { rptLoaded = true; });
+    });
+    document.getElementById('rpt-refresh').addEventListener('click', function() { rptLoaded = true; });
+
   })();
   </script>
 </body>

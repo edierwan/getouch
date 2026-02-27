@@ -69,6 +69,7 @@ router.put('/settings/:key', async (req, res) => {
     'ai.default_text_model',
     'ai.default_vision_model',
     'ai.enable_image',
+    'ai.default_image_engine',
     'ai.image.max_per_day_free',
     'ai.image.max_per_day_free.prod',
     'ai.image.max_per_day_free.dev',
@@ -80,6 +81,47 @@ router.put('/settings/:key', async (req, res) => {
     'typing.mode',
     'typing.speed',
     'typing.adaptive_catchup',
+    'guest.chat_per_hour',
+    'guest.chat_per_day',
+    'guest.doc_per_day',
+    'guest.image_per_day',
+    'guest.images_per_day',
+    'guest.soft_gate_after_chats',
+    'guest.soft_gate_after_images',
+    'guest.require_register_after_n',
+    // Web research settings
+    'web_research.enabled',
+    'web_research.search_provider',
+    'web_research.searxng_url',
+    'web_research.max_sources',
+    'web_research.max_fetch',
+    'web_research.allowed_domains',
+    'web_research.blocked_domains',
+    'web_research.cache_ttl_minutes',
+    'web_research.timeout_seconds',
+    // Personality & routing settings
+    'ai.personality_enabled',
+    'ai.dialect_mirroring',
+    'ai.smalltalk_stabilizer',
+    'ai.dialect_mirroring_level',
+    'ai.smalltalk_max_tokens',
+    'ai.general_max_tokens',
+    'ai.task_max_tokens',
+    // Performance limits
+    'limits.max_upload_mb',
+    'limits.max_file_size_mb',
+    'limits.max_pdf_pages',
+    'limits.max_pdf_pages_guest',
+    'limits.max_pdf_pages_registered',
+    'limits.max_sheets',
+    'limits.max_rows_per_sheet',
+    'limits.max_web_sources',
+    'limits.max_context_chars',
+    // Tool settings
+    'tool.order_lookup.enabled',
+    'tool.points_lookup.enabled',
+    'tool.qr_verify.enabled',
+    'tool.db_read.enabled',
   ];
 
   if (!allowedKeys.includes(key)) {
@@ -96,6 +138,12 @@ router.put('/settings/:key', async (req, res) => {
 
   if (key === 'ai.enable_image' && typeof value !== 'boolean') {
     return res.status(400).json({ error: 'value must be boolean' });
+  }
+
+  if (key === 'ai.default_image_engine') {
+    if (!['sdxl', 'flux'].includes(value)) {
+      return res.status(400).json({ error: 'value must be "sdxl" or "flux"' });
+    }
   }
 
   // Validate typing settings
@@ -123,10 +171,95 @@ router.put('/settings/:key', async (req, res) => {
     'rate_limit.chat.dev',
     'rate_limit.image.prod',
     'rate_limit.image.dev',
+    'guest.chat_per_hour',
+    'guest.chat_per_day',
+    'guest.doc_per_day',
+    'guest.image_per_day',
+    'guest.images_per_day',
+    'guest.soft_gate_after_chats',
+    'guest.soft_gate_after_images',
+    'guest.require_register_after_n',
   ];
   if (numericKeys.includes(key)) {
     if (typeof value !== 'number' || value < 0 || value > 1000) {
       return res.status(400).json({ error: 'value must be a number between 0 and 1000' });
+    }
+  }
+
+  // Validate web research settings
+  if (key === 'web_research.enabled' && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+  if (key === 'web_research.search_provider') {
+    if (!['searxng', 'tavily', 'serpapi'].includes(value)) {
+      return res.status(400).json({ error: 'value must be "searxng", "tavily", or "serpapi"' });
+    }
+  }
+  if (key === 'web_research.searxng_url') {
+    if (typeof value !== 'string' || value.length > 200) {
+      return res.status(400).json({ error: 'value must be a URL string (max 200 chars)' });
+    }
+  }
+  const webNumericKeys = [
+    'web_research.max_sources',
+    'web_research.max_fetch',
+    'web_research.cache_ttl_minutes',
+    'web_research.timeout_seconds',
+  ];
+  if (webNumericKeys.includes(key)) {
+    if (typeof value !== 'number' || value < 1 || value > 999) {
+      return res.status(400).json({ error: 'value must be a number between 1 and 999' });
+    }
+  }
+  if (key === 'web_research.allowed_domains' || key === 'web_research.blocked_domains') {
+    if (typeof value !== 'string' || value.length > 2000) {
+      return res.status(400).json({ error: 'value must be a comma-separated string (max 2000 chars)' });
+    }
+  }
+
+  // Validate personality settings
+  if (key === 'ai.personality_enabled' && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+  if (key === 'ai.dialect_mirroring' && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+  if (key === 'ai.smalltalk_stabilizer' && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+  if (key === 'ai.dialect_mirroring_level') {
+    if (!['off', 'light', 'medium'].includes(value)) {
+      return res.status(400).json({ error: 'value must be "off", "light", or "medium"' });
+    }
+  }
+  // Validate tool enable/disable settings
+  if (key.startsWith('tool.') && key.endsWith('.enabled') && typeof value !== 'boolean') {
+    return res.status(400).json({ error: 'value must be boolean' });
+  }
+  const personalityNumericKeys = [
+    'ai.smalltalk_max_tokens',
+    'ai.general_max_tokens',
+    'ai.task_max_tokens',
+  ];
+  if (personalityNumericKeys.includes(key)) {
+    if (typeof value !== 'number' || value < 64 || value > 8192) {
+      return res.status(400).json({ error: 'value must be a number between 64 and 8192' });
+    }
+  }
+  const limitsNumericKeys = [
+    'limits.max_upload_mb',
+    'limits.max_file_size_mb',
+    'limits.max_pdf_pages',
+    'limits.max_pdf_pages_guest',
+    'limits.max_pdf_pages_registered',
+    'limits.max_sheets',
+    'limits.max_rows_per_sheet',
+    'limits.max_web_sources',
+    'limits.max_context_chars',
+  ];
+  if (limitsNumericKeys.includes(key)) {
+    if (typeof value !== 'number' || value < 1 || value > 500000) {
+      return res.status(400).json({ error: 'value must be a positive number' });
     }
   }
 
