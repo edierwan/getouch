@@ -847,6 +847,18 @@ async function performWebResearch(userMessage) {
           .map(r => ({ url: r.url, title: r.title, text: `${r.title}. ${r.snippet}` }));
       } else {
         finalSources = usable.slice(0, maxSources);
+        // Supplement with snippet data if we have fewer sources than desired
+        if (finalSources.length < maxSources) {
+          const fetchedUrls = new Set(finalSources.map(s => s.url));
+          const snippetSources = searchResults
+            .filter(r => !fetchedUrls.has(r.url) && r.snippet && r.snippet.length > 10)
+            .slice(0, maxSources - finalSources.length)
+            .map(r => ({ url: r.url, title: r.title, text: `${r.title}. ${r.snippet}` }));
+          if (snippetSources.length > 0) {
+            console.log('[web-research] Supplementing with', snippetSources.length, 'snippet sources');
+            finalSources = finalSources.concat(snippetSources);
+          }
+        }
       }
     }
 
