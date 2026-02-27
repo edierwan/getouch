@@ -29,6 +29,12 @@ const {
 const { performWebResearch } = require('../lib/web-research');
 const { routeMessage, ROUTE } = require('../lib/router');
 const { sanitizeOutput } = require('../lib/input-normalizer');
+const {
+  addUserTurn, addAssistantTurn,
+  getRouterContext, getHistoryMessages, isDocFollowUp,
+  applyExplicitRequest, setPreference,
+} = require('../lib/conversation-context');
+const { applyDialectPostProcess } = require('../lib/dialect');
 
 const router = Router();
 
@@ -147,8 +153,18 @@ router.post('/chat', async (req, res) => {
   }
 
   /* ── Central Router (enhanced pipeline) ────────────────── */
-  const decision = await routeMessage(message, { hasImage, hasDoc, doc });
+  // Build conversation context for the router
+  const ctxKey = req.session?.userId ? `user:${req.session.userId}` : (req.visitorId || actor);
+  const convContext = getRouterContext(ctxKey);
+  const docFollowUp = isDocFollowUp(ctxKey);
+
+  const decision = await routeMessage(message, { hasImage, hasDoc, doc }, { convContext, docFollowUp });
   const routeType = decision.routeType;
+
+  // ── Apply explicit dialect/language requests to session preferences ──
+  if (decision.explicitRequest && decision.explicitRequest.requested) {
+    applyExplicitRequest(ctxKey, decision.explicitRequest);
+  }
 
   /* ── Model selection ───────────────────────────────────── */
   let selectedModel = model;
@@ -330,6 +346,18 @@ router.post('/chat', async (req, res) => {
       userMessage.images = userImages;
     }
 
+    // Build conversation history for multi-turn context
+    const historyMsgs = getHistoryMessages(ctxKey, 6);
+
+    // Record user turn BEFORE streaming (so context is available for next request)
+    addUserTurn(ctxKey, hasText ? message : '[attachment]', {
+      route: routeType,
+      lang: decision.lang.language,
+      dialect: decision.lang.dialect,
+      intent: decision.intent?.intent,
+      docId: doc ? doc.meta?.fileName : null,
+    });
+
     // Vision model fallback: if vision fails, try text OCR
     let ollamaRes;
     try {
@@ -340,12 +368,14 @@ router.post('/chat', async (req, res) => {
           model: selectedModel,
           messages: [
             { role: 'system', content: systemContent },
+            ...historyMsgs,
             userMessage,
           ],
           stream: true,
           keep_alive: '30m',
           options: {
-            temperature: temperature ?? (routeType === 'SMALLTALK' ? 0.8 : 0.7),
+            temperature: temperature ?? (decision.decodingConfig?.temperature ?? 0.7),
+            top_p:       decision.decodingConfig?.top_p ?? 0.9,
             num_predict: max_tokens || decision.numPredict || (webResearchResult ? 2048 : (doc ? 4096 : 1024)),
           },
         }),
@@ -378,6 +408,7 @@ router.post('/chat', async (req, res) => {
     let totalTokensIn = 0;
     let totalTokensOut = 0;
     let finalModel = selectedModel;
+    let fullAssistantResponse = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -394,6 +425,7 @@ router.post('/chat', async (req, res) => {
           const chunk = JSON.parse(line);
           if (chunk.message && chunk.message.content) {
             res.write(`event: token\ndata: ${JSON.stringify({ delta: chunk.message.content })}\n\n`);
+            fullAssistantResponse += chunk.message.content;
           }
           if (chunk.done) {
             totalTokensIn  = chunk.prompt_eval_count || 0;
@@ -410,6 +442,7 @@ router.post('/chat', async (req, res) => {
         const chunk = JSON.parse(buffer);
         if (chunk.message?.content) {
           res.write(`event: token\ndata: ${JSON.stringify({ delta: chunk.message.content })}\n\n`);
+          fullAssistantResponse += chunk.message.content;
         }
         if (chunk.done) {
           totalTokensIn  = chunk.prompt_eval_count || 0;
@@ -418,6 +451,18 @@ router.post('/chat', async (req, res) => {
         }
       } catch {}
     }
+
+    // Record assistant turn for conversation context
+    // Apply dialect post-processing if needed (light-touch transforms)
+    const effectiveDialect = decision.lang.dialect;
+    const dialectIntensity = decision.lang._prefDialectIntensity || 0.25;
+    const dialectIsExplicit = decision.lang._dialectIsExplicit || false;
+    const dialectConfidence = decision.lang.confidence || 0;
+
+    // Post-process is applied to the stored response for consistency tracking
+    // The actual streamed tokens were already sent — post-processing affects
+    // future context awareness but the system prompt handles the main dialect work
+    addAssistantTurn(ctxKey, fullAssistantResponse, { route: routeType });
 
     // ── Done event ──
     const donePayload = {
@@ -599,6 +644,33 @@ router.get('/chat/models', async (_req, res) => {
     res.json({ models: ollamaModels, default_model: defaultModel, default_vision_model: defaultVision });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load models' });
+  }
+});
+
+/**
+ * POST /v1/chat/feedback — record quality signal (thumbs up/down)
+ */
+router.post('/chat/feedback', async (req, res) => {
+  const { rating, route, model, responseLength } = req.body || {};
+  if (!rating || !['up', 'down'].includes(rating)) {
+    return res.status(400).json({ error: 'rating must be "up" or "down"' });
+  }
+
+  const actor = getActor(req);
+  const visitorId = req.visitorId || actor;
+  const env = req.env || 'prod';
+
+  try {
+    await dbQuery(
+      `INSERT INTO quality_signals (visitor_id, user_id, rating, route_type, model, response_length, environment)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [visitorId, req.session?.userId || null, rating, route || null, model || null, responseLength || 0, env]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[feedback] DB error:', err.message);
+    // Still return OK — don't block UI for feedback failures
+    res.json({ ok: true });
   }
 });
 

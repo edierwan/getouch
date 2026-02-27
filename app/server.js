@@ -563,23 +563,54 @@ async function warmupOllama() {
       console.log(`[ollama] Warming up vision model: ${visionModel}...`);
       const ac2 = new AbortController();
       const tm2 = setTimeout(() => ac2.abort(), 180_000);
-      const r2 = await fetch(`${ollamaUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: visionModel,
-          messages: [{ role: 'user', content: 'hi' }],
-          stream: false,
-          keep_alive: '30m',
-          options: { num_predict: 1 },
-        }),
-        signal: ac2.signal,
-      });
-      clearTimeout(tm2);
-      if (r2.ok) {
-        console.log(`[ollama] Vision model ${visionModel} warmed up (kept alive 30m)`);
-      } else {
-        console.warn(`[ollama] Vision warmup returned HTTP ${r2.status}`);
+      try {
+        const r2 = await fetch(`${ollamaUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: visionModel,
+            messages: [{ role: 'user', content: 'hi' }],
+            stream: false,
+            keep_alive: '30m',
+            options: { num_predict: 1 },
+          }),
+          signal: ac2.signal,
+        });
+        clearTimeout(tm2);
+        if (r2.ok) {
+          console.log(`[ollama] Vision model ${visionModel} warmed up (kept alive 30m)`);
+        } else {
+          console.warn(`[ollama] Vision warmup returned HTTP ${r2.status} — model may be too large for GPU`);
+          // Re-load text model since failed vision warmup may have evicted it
+          console.log(`[ollama] Re-loading text model ${defaultModel}...`);
+          await fetch(`${ollamaUrl}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: defaultModel,
+              messages: [{ role: 'user', content: 'hi' }],
+              stream: false,
+              keep_alive: '30m',
+              options: { num_predict: 1 },
+            }),
+          }).catch(() => {});
+          console.log(`[ollama] Text model ${defaultModel} re-loaded`);
+        }
+      } catch (visionErr) {
+        clearTimeout(tm2);
+        console.warn('[ollama] Vision warmup error:', visionErr.message);
+        // Re-load text model
+        await fetch(`${ollamaUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: defaultModel,
+            messages: [{ role: 'user', content: 'hi' }],
+            stream: false,
+            keep_alive: '30m',
+            options: { num_predict: 1 },
+          }),
+        }).catch(() => {});
       }
     }
   } catch (err) {

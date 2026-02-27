@@ -16,9 +16,11 @@ const COMFYUI_URL  = `http://${COMFYUI_HOST}:${COMFYUI_PORT}`;
 
 // Workflow templates per engine
 const WORKFLOWS = {
-  sdxl:       path.join(__dirname, '..', 'workflows', 'sdxl_basic.json'),
-  flux:       path.join(__dirname, '..', 'workflows', 'flux_basic.json'),
-  sdxl_i2i:   path.join(__dirname, '..', 'workflows', 'sdxl_img2img.json'),
+  sdxl:             path.join(__dirname, '..', 'workflows', 'sdxl_basic.json'),
+  flux:             path.join(__dirname, '..', 'workflows', 'flux_basic.json'),
+  sdxl_i2i:         path.join(__dirname, '..', 'workflows', 'sdxl_img2img.json'),
+  restore_upscale:  path.join(__dirname, '..', 'workflows', 'restore_upscale.json'),
+  restore_enhanced: path.join(__dirname, '..', 'workflows', 'restore_enhanced.json'),
 };
 
 /**
@@ -66,7 +68,7 @@ function buildWorkflow(params) {
   const steps      = Math.min(params.steps  || (engine === 'flux' ? 20 : 25), 40);
   const cfg        = params.cfg || (engine === 'flux' ? 1.0 : 7.0);
   const seed       = params.seed || Math.floor(Math.random() * 2 ** 32);
-  const denoise    = params.denoise || (isImg2Img ? 0.45 : 1.0);
+  const denoise    = params.denoise || (isImg2Img ? 0.25 : 1.0);
 
   if (isImg2Img) {
     // img2img workflow — set source image, prompt, and denoise
@@ -269,6 +271,149 @@ async function uploadImage(imageBuffer, filename = 'input.png') {
 }
 
 /**
+ * Build a restoration workflow (upscaler-based, no diffusion hallucination).
+ *
+ * Two modes:
+ *   - 'upscale' (default): Pure neural upscale → scale back to original size. No KSampler.
+ *   - 'enhanced': Upscale first, then VERY light KSampler (denoise 0.10) for subtle refinement.
+ *
+ * @param {object} params
+ * @param {string} params.source_image_name  - filename as stored by ComfyUI
+ * @param {string} [params.restore_mode]     - 'upscale' | 'enhanced'
+ * @param {string} [params.upscale_model]    - '4x-UltraSharp.pth' (default)
+ * @param {number} [params.denoise]          - denoise for enhanced mode (default 0.10)
+ * @returns {object}
+ */
+function buildRestoreWorkflow(params) {
+  const mode        = params.restore_mode || 'upscale';
+  const workflowKey = mode === 'enhanced' ? 'restore_enhanced' : 'restore_upscale';
+  const workflowPath = WORKFLOWS[workflowKey];
+
+  if (!workflowPath || !fs.existsSync(workflowPath)) {
+    throw new Error(`Restore workflow not found: ${workflowKey}`);
+  }
+
+  const template = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+
+  // Set source image
+  if (template['10']) {
+    template['10'].inputs.image = params.source_image_name;
+  }
+
+  // Set upscale model
+  if (template['11']) {
+    template['11'].inputs.model_name = params.upscale_model || '4x-UltraSharp.pth';
+  }
+
+  // Enhanced mode: set denoise, prompt, and seed on KSampler
+  if (mode === 'enhanced' && template['3']) {
+    const seed = params.seed || Math.floor(Math.random() * 2 ** 32);
+    template['3'].inputs.denoise = Math.min(params.denoise || 0.10, 0.20); // cap at 0.20
+    template['3'].inputs.seed = seed;
+
+    if (template['6'] && params.prompt) {
+      template['6'].inputs.text = params.prompt;
+    }
+  }
+
+  return { workflow: template, mode };
+}
+
+/**
+ * Restore an image using neural upscaler (Real-ESRGAN / UltraSharp).
+ * Does NOT reimagine the content — preserves the original faithfully.
+ *
+ * @param {object} params - { source_image (Buffer), source_filename, restore_mode, upscale_model, prompt, denoise, seed }
+ * @param {string} outputDir
+ * @returns {Promise<object>}
+ */
+async function generateRestore(params, outputDir) {
+  // Step 1: Upload source image to ComfyUI
+  const uploadedName = await uploadImage(params.source_image, params.source_filename || 'source.png');
+  console.log(`[comfyui] Uploaded source image for restore as: ${uploadedName}`);
+
+  // Step 2: Build restore workflow
+  const { workflow, mode } = buildRestoreWorkflow({
+    ...params,
+    source_image_name: uploadedName,
+  });
+
+  const clientId = crypto.randomUUID();
+
+  // Step 3: Queue the prompt
+  const queueRes = await fetch(`${COMFYUI_URL}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: workflow,
+      client_id: clientId,
+    }),
+  });
+
+  if (!queueRes.ok) {
+    const err = await queueRes.text();
+    throw new Error(`ComfyUI restore queue failed: ${err}`);
+  }
+
+  const { prompt_id } = await queueRes.json();
+  const startTime = Date.now();
+
+  // Poll for completion (max 120s)
+  let imageInfo = null;
+  for (let i = 0; i < 240; i++) {
+    await new Promise(r => setTimeout(r, 500));
+
+    const histRes = await fetch(`${COMFYUI_URL}/history/${prompt_id}`);
+    if (!histRes.ok) continue;
+
+    const hist = await histRes.json();
+    if (!hist[prompt_id]) continue;
+
+    const outputs = hist[prompt_id].outputs;
+    if (!outputs) continue;
+
+    for (const nodeId of Object.keys(outputs)) {
+      const nodeOut = outputs[nodeId];
+      if (nodeOut.images && nodeOut.images.length > 0) {
+        imageInfo = nodeOut.images[0];
+        break;
+      }
+    }
+    if (imageInfo) break;
+  }
+
+  if (!imageInfo) {
+    throw new Error('Image restoration timed out (120s)');
+  }
+
+  const genTime = Date.now() - startTime;
+
+  // Download the image from ComfyUI
+  const imgUrl = `${COMFYUI_URL}/view?filename=${encodeURIComponent(imageInfo.filename)}&subfolder=${encodeURIComponent(imageInfo.subfolder || '')}&type=${imageInfo.type || 'output'}`;
+  const imgRes = await fetch(imgUrl);
+  if (!imgRes.ok) throw new Error('Failed to download restored image from ComfyUI');
+
+  const ext = path.extname(imageInfo.filename) || '.png';
+  const outName = `${crypto.randomUUID()}${ext}`;
+  const outPath = path.join(outputDir, outName);
+
+  fs.mkdirSync(outputDir, { recursive: true });
+  const buffer = Buffer.from(await imgRes.arrayBuffer());
+  fs.writeFileSync(outPath, buffer);
+
+  return {
+    file_path: outPath,
+    file_name: outName,
+    seed: 0,
+    timings: {
+      generation_ms: genTime,
+      mode: `restore_${mode}`,
+      upscale_model: params.upscale_model || '4x-UltraSharp.pth',
+    },
+  };
+}
+
+/**
  * Generate an image using img2img (source image + prompt).
  * Uploads source image, runs img2img workflow, downloads result.
  *
@@ -285,11 +430,11 @@ async function generateImg2Img(params, outputDir) {
   const img2imgParams = {
     ...params,
     source_image_name: uploadedName,
-    denoise: params.denoise || 0.45,
+    denoise: params.denoise || 0.25,
   };
 
   // Step 3: Run standard generation with the img2img workflow
   return generateImage(img2imgParams, outputDir);
 }
 
-module.exports = { isHealthy, generateImage, generateImg2Img, uploadImage, buildWorkflow };
+module.exports = { isHealthy, generateImage, generateImg2Img, generateRestore, uploadImage, buildWorkflow, buildRestoreWorkflow };

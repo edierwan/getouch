@@ -83,6 +83,8 @@ const {
   detectLanguageAndDialect,
   conservativeSpellCorrect,
   buildSmalltalkStabilizer,
+  detectExplicitRequest,
+  applyDialectPostProcess,
 } = require('../lib/dialect');
 
 test('detects Utara dialect tokens', () => {
@@ -265,6 +267,148 @@ test('returns pipeline metadata', async () => {
   ok(decision.lang);
   ok(decision.intent);
   ok(typeof decision.lang.language === 'string');
+});
+
+/* ═══════════════════════════════════════════════════════════
+   6. Dialect/Language Acceptance Tests (Round 3)
+   ═══════════════════════════════════════════════════════════ */
+console.log('\n── Dialect/Language Acceptance Tests ──');
+const { applyExplicitRequest, setPreference, getPreferences, getRouterContext: getCtx, addUserTurn: addUT } = require('../lib/conversation-context');
+
+// T1: "kalau kace klate boleh?" → detect KELANTAN, NOT UTARA
+test('T1: Kelantan explicit request detected', () => {
+  const result = detectLanguageAndDialect('kalau kace klate boleh?');
+  eq(result.dialect, 'KELANTAN', `dialect should be KELANTAN, got ${result.dialect}`);
+  ok(result.explicitRequest.requested, 'should detect explicit request');
+  eq(result.explicitRequest.dialect, 'KELANTAN');
+});
+
+// T2: "ambo nok tanyo demo" → KELANTAN (exclusive tokens: ambo, demo)
+test('T2: Kelantan tokens (ambo, demo) → KELANTAN not UTARA', () => {
+  const result = detectLanguageAndDialect('ambo nok tanyo demo');
+  eq(result.dialect, 'KELANTAN');
+  ok(result.kelantanScore > result.utaraScore, 'kelantanScore should exceed utaraScore');
+});
+
+// T3: "hang pi mana tu" → UTARA (exclusive tokens: hang, pi)
+test('T3: Utara tokens (hang, pi) → UTARA not KELANTAN', () => {
+  const result = detectLanguageAndDialect('hang pi mana tu');
+  eq(result.dialect, 'UTARA');
+  ok(result.utaraScore > result.kelantanScore, 'utaraScore should exceed kelantanScore');
+});
+
+// T4: "speak english please" → explicit English request
+test('T4: Explicit English request detected', () => {
+  const req = detectExplicitRequest('can you speak english please');
+  ok(req.requested, 'should detect explicit request');
+  eq(req.lang, 'en');
+});
+
+// T5: "standard BM je" → reset dialect to STANDARD
+test('T5: Standard BM reset request', () => {
+  const req = detectExplicitRequest('standard bm je');
+  ok(req.requested, 'should detect reset request');
+  eq(req.dialect, 'STANDARD');
+});
+
+// T6: "loghat klate" → request Kelantan dialect
+test('T6: Explicit Klate dialect request via "loghat klate"', () => {
+  const req = detectExplicitRequest('loghat klate');
+  ok(req.requested);
+  eq(req.dialect, 'KELANTAN');
+});
+
+// T7: "loghat utara" → request Utara dialect
+test('T7: Explicit Utara dialect request via "loghat utara"', () => {
+  const req = detectExplicitRequest('loghat utara');
+  ok(req.requested);
+  eq(req.dialect, 'UTARA');
+});
+
+// T8: Session preference stickiness — set klate, verify preference persists
+test('T8: Session preferences persist after setPreference', () => {
+  const key = 'test_sticky_' + Date.now();
+  setPreference(key, 'dialect', 'klate');
+  setPreference(key, 'language', 'ms');
+  const prefs = getPreferences(key);
+  eq(prefs.dialect, 'klate');
+  eq(prefs.language, 'ms');
+});
+
+// T9: applyExplicitRequest sets preferences correctly
+test('T9: applyExplicitRequest sets session prefs for KELANTAN', () => {
+  const key = 'test_explicit_' + Date.now();
+  applyExplicitRequest(key, { requested: true, lang: 'ms', dialect: 'KELANTAN' });
+  const prefs = getPreferences(key);
+  eq(prefs.dialect, 'klate', `dialect pref should be klate, got ${prefs.dialect}`);
+  eq(prefs.dialectIntensity, 0.35, 'explicit request should bump intensity to 0.35');
+});
+
+// T10: applyExplicitRequest for STANDARD resets dialect
+test('T10: applyExplicitRequest for STANDARD resets dialect', () => {
+  const key = 'test_reset_' + Date.now();
+  // First set klate
+  applyExplicitRequest(key, { requested: true, lang: 'ms', dialect: 'KELANTAN' });
+  eq(getPreferences(key).dialect, 'klate');
+  // Then reset to standard
+  applyExplicitRequest(key, { requested: true, lang: 'ms', dialect: 'STANDARD' });
+  eq(getPreferences(key).dialect, 'none');
+  eq(getPreferences(key).dialectIntensity, 0, 'intensity should reset to 0');
+});
+
+// T11: Dialect post-processor transforms for KELANTAN
+test('T11: Dialect post-processor applies Kelantan transforms', () => {
+  const input = 'Boleh awak, kenapa awak nak tahu?';
+  const result = applyDialectPostProcess(input, 'KELANTAN', { intensity: 0.4, explicit: true });
+  ok(result.includes('demo'), `should transform awak→demo, got: ${result}`);
+  ok(!result.includes('hang'), 'should NOT contain Utara words');
+});
+
+// T12: Dialect post-processor transforms for UTARA
+test('T12: Dialect post-processor applies Utara transforms', () => {
+  const input = 'Boleh awak, kenapa awak nak tahu?';
+  const result = applyDialectPostProcess(input, 'UTARA', { intensity: 0.4, explicit: true });
+  ok(result.includes('hang'), `should transform awak→hang, got: ${result}`);
+  ok(!result.includes('demo'), 'should NOT contain Kelantan words');
+});
+
+// T13: Post-processor skips if confidence low and not explicit
+test('T13: Post-processor skips when low confidence and not explicit', () => {
+  const input = 'Boleh awak tanya saya.';
+  const result = applyDialectPostProcess(input, 'KELANTAN', { intensity: 0.3, explicit: false, confidence: 0.3 });
+  eq(result, input, 'should return unchanged text');
+});
+
+// T14: Post-processor applies when explicitly requested even with low confidence
+test('T14: Post-processor applies when explicit despite low confidence', () => {
+  const input = 'Boleh awak tanya saya.';
+  const result = applyDialectPostProcess(input, 'KELANTAN', { intensity: 0.3, explicit: true, confidence: 0.3 });
+  ok(result !== input, 'should apply transforms when explicit');
+});
+
+// T15: Kelantan stabilizer uses correct tokens (not Utara)
+test('T15: Kelantan stabilizer instructions mention demo/gapo and warn against Utara', () => {
+  const langResult = { dialect: 'KELANTAN', tone: 'greeting', dialectTokensFound: ['demo', 'gapo'] };
+  const stabilizer = buildSmalltalkStabilizer(langResult, 'light');
+  ok(stabilizer.instructions.includes('demo'), 'should mention demo');
+  ok(stabilizer.instructions.includes('Kelantan'), 'should reference Kelantan');
+  ok(stabilizer.instructions.includes('WRONG dialect'), 'should warn about wrong dialect mixing');
+  // Should NOT suggest using hang as an example token to USE (only as DO NOT USE)
+  ok(!stabilizer.instructions.includes('Use casual Utara'), 'should NOT suggest casual Utara usage');
+});
+
+// T16: Mixed message with both Utara and Kelantan tokens → higher scorer wins
+test('T16: Mixed dialect tokens — higher score wins', () => {
+  // More Kelantan tokens than Utara
+  const result = detectLanguageAndDialect('demo ambo ore gapo hang');
+  // 4 kelantan tokens vs 1 utara
+  eq(result.dialect, 'KELANTAN', 'More Kelantan tokens should win');
+});
+
+// T17: "gapo khabar demo" → KELANTAN (not UTARA, not STANDARD)
+test('T17: Pure Kelantan greeting → KELANTAN', () => {
+  const result = detectLanguageAndDialect('gapo khabar demo');
+  eq(result.dialect, 'KELANTAN');
 });
 
 /* ═══════════════════════════════════════════════════════════

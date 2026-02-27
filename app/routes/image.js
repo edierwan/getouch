@@ -86,7 +86,8 @@ router.post('/image/generate', async (req, res) => {
 
   // Validate input
   const { prompt, negative_prompt, width, height, steps, cfg, seed,
-          source_image, source_image_mime, source_filename, denoise } = req.body || {};
+          source_image, source_image_mime, source_filename, denoise,
+          mode } = req.body || {};
 
   if (!prompt || typeof prompt !== 'string' || prompt.trim().length < 3) {
     return res.status(400).json({ error: 'prompt is required (min 3 characters)' });
@@ -105,6 +106,10 @@ router.post('/image/generate', async (req, res) => {
       return res.status(400).json({ error: 'Source image too large (max 10 MB)' });
     }
   }
+
+  // Detect restore mode: 'restore' = upscaler-only, 'enhance' = upscaler + light diffusion, 'edit' = img2img
+  // Default: if source image provided with no explicit mode, use 'restore'
+  const imageMode = hasSourceImage ? (mode || 'restore') : 'generate';
 
   const params = {
     prompt: prompt.trim(),
@@ -143,13 +148,28 @@ router.post('/image/generate', async (req, res) => {
   try {
     let result;
 
-    if (sourceImageBuffer) {
-      // img2img: enhance/edit source image with prompt guidance
+    if (sourceImageBuffer && (imageMode === 'restore' || imageMode === 'enhance')) {
+      // RESTORE mode: neural upscaler, NO diffusion hallucination
+      //   'restore'  → pure upscale (4x-UltraSharp) → scale back
+      //   'enhance'  → upscale + very light KSampler (denoise ≤ 0.20)
+      console.log(`[image:${env}] Restore mode=${imageMode} for ${source_filename || 'source'}`);
+      result = await comfyui.generateRestore({
+        source_image: sourceImageBuffer,
+        source_filename: source_filename || 'source.png',
+        restore_mode: imageMode === 'enhance' ? 'enhanced' : 'upscale',
+        upscale_model: '4x-UltraSharp.pth',
+        prompt: params.prompt,
+        denoise: Math.min(denoise || 0.10, 0.20),
+        seed: params.seed,
+      }, IMAGE_DIR);
+    } else if (sourceImageBuffer && imageMode === 'edit') {
+      // EDIT mode: img2img with moderate denoise for creative edits
+      console.log(`[image:${env}] Edit (img2img) mode for ${source_filename || 'source'}`);
       result = await comfyui.generateImg2Img({
         ...params,
         source_image: sourceImageBuffer,
         source_filename: source_filename || 'source.png',
-        denoise: denoise || 0.45,
+        denoise: denoise || 0.25,
       }, IMAGE_DIR);
     } else {
       // txt2img: generate from prompt only

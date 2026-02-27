@@ -7,28 +7,39 @@
  *   formality: 'casual' | 'formal' | 'neutral'
  *   tone:     'greeting' | 'neutral' | 'formal'
  *
- * Includes SMALLTALK_STABILIZER for natural dialect handling.
+ * Includes:
+ *   - SMALLTALK_STABILIZER for natural dialect handling
+ *   - Explicit dialect/language request detection
+ *   - Dialect post-processor (light-touch transforms, intensity limiter)
+ *
  * No external API calls — purely token-based for speed.
  */
 
 /* ── Northern Malay (Utara / Kedah-Penang-Perlis) dialect tokens ── */
+/* EXCLUSIVE Utara tokens — NOT shared with Kelantan */
 const UTARA_TOKENS = [
   'hang', 'hampa', 'depa', 'pi', 'mai', 'dok', 'sat',
   'pasaipa', 'awat', 'habaq', 'haq', 'macam tu', 'macamtu',
   'noh', 'la ni', 'lani', 'teman', 'mu', 'kome', 'ceq',
   'watpa', 'buleh', 'weh', 'cemana', 'cokia', 'denge',
   'tak leh', 'boleh dak', 'pa habaq', 'pa khabar',
-  'dak', 'tok', 'toksey', 'ghoyak', 'make', 'ekau',
+  'dak', 'tok', 'toksey', 'ghoyak', 'ekau',
   'cheq', 'loqlaq', 'pey', 'puloq', 'kecek',
 ];
 
-/* ── Kelantan/Terengganu tokens ──────────────────────────── */
+/* ── Kelantan tokens (Klate) — EXCLUSIVE, not shared with Utara ── */
 const KELANTAN_TOKENS = [
-  'guano', 'ambo', 'demo', 'gapo', 'mung', 'kawe',
-  'getek', 'nnapok', 'sokmo', 'pitih', 'lagu mano',
-  'ore', 'hok', 'ttube', 'bui', 'maghih', 'nok',
-  'blako', 'rhoyak', 'jatuh', 'make', 'kito',
+  'guano', 'guane', 'ambo', 'demo', 'gapo', 'mung', 'kawe',
+  'getek', 'nnapok', 'nampok', 'sokmo', 'pitih', 'lagu mano',
+  'ore', 'hok', 'ttube', 'tube', 'bui', 'maghih', 'nok',
+  'blako', 'rhoyak', 'kito', 'sapa', 'aghe', 'abe',
+  'oghe', 'mugo', 'ghinek', 'toksah', 'bakpo', 'klate',
+  'kelate', 'mace', 'kace', 'kelik', 'nate', 'nnaik',
+  'droh', 'ghalik', 'nnate', 'jjual', 'bbeli', 'ggetek',
 ];
+
+/* ── Shared tokens that appear in BOTH dialects — low discriminative value ── */
+const SHARED_DIALECT_TOKENS = ['make', 'nok', 'weh'];
 
 /* ── Malay indicators (standard + informal) ──────────────── */
 const MALAY_TOKENS = [
@@ -78,6 +89,47 @@ const GREETING_PATTERNS = [
   /^(bye|tata|jumpa lagi|thanks|terima kasih|ok(ay)?|baik)\b/i,
 ];
 
+/* ── Explicit dialect/language request patterns ──────────── */
+const DIALECT_REQUEST_PATTERNS = [
+  // English requests
+  { pattern: /\b(speak|talk|reply|respond|use)\s+(in\s+)?(english|eng)\b/i, lang: 'en', dialect: null },
+  { pattern: /\b(can you|boleh)\s+(speak|cakap|reply|respond)\s+(in\s+)?(english|eng)\b/i, lang: 'en', dialect: null },
+  { pattern: /\bin english\s+(please|pls)?\b/i, lang: 'en', dialect: null },
+
+  // Standard BM / reset dialect
+  { pattern: /\b(standard|biasa)\s+(bm|bahasa|melayu)\s*(je|ja|sahaja|saja)?\b/i, lang: 'ms', dialect: 'STANDARD' },
+  { pattern: /\bjangan\s+(loghat|dialect|dialek)\b/i, lang: 'ms', dialect: 'STANDARD' },
+  { pattern: /\b(cakap|balas)\s+(bm|melayu)\s+(biasa|standard)\b/i, lang: 'ms', dialect: 'STANDARD' },
+
+  // Kelantan / Klate explicit
+  { pattern: /\b(kace|kase|guna|pakai|cakap|balas|reply)\s+(klate|kelate|kelantan|kelantanese)\b/i, lang: 'ms', dialect: 'KELANTAN' },
+  { pattern: /\b(loghat|dialect|dialek)\s+(klate|kelate|kelantan)\b/i, lang: 'ms', dialect: 'KELANTAN' },
+  { pattern: /\bklate\s+(boleh|buleh)\b/i, lang: 'ms', dialect: 'KELANTAN' },
+  { pattern: /\bkalau\s+(kace|kase|guna)\s+(klate|kelate|kelantan)\b/i, lang: 'ms', dialect: 'KELANTAN' },
+  { pattern: /\b(boleh|buleh)\s+(tak|x)?\s*(cakap|kace|kase|guna)\s+(klate|kelate|kelantan)\b/i, lang: 'ms', dialect: 'KELANTAN' },
+
+  // Utara explicit
+  { pattern: /\b(kace|kase|guna|pakai|cakap|balas|reply)\s+(utara|kedah|penang|perlis)\b/i, lang: 'ms', dialect: 'UTARA' },
+  { pattern: /\b(loghat|dialect|dialek)\s+(utara|kedah|penang|perlis)\b/i, lang: 'ms', dialect: 'UTARA' },
+];
+
+/**
+ * Detect if user is explicitly requesting a language or dialect change.
+ *
+ * @param {string} message
+ * @returns {{ requested: boolean, lang: string|null, dialect: string|null }}
+ */
+function detectExplicitRequest(message) {
+  if (!message) return { requested: false, lang: null, dialect: null };
+  const lower = message.toLowerCase().trim();
+  for (const { pattern, lang, dialect } of DIALECT_REQUEST_PATTERNS) {
+    if (pattern.test(lower)) {
+      return { requested: true, lang, dialect };
+    }
+  }
+  return { requested: false, lang: null, dialect: null };
+}
+
 /**
  * Detect user's tone for tone-mirroring.
  */
@@ -92,7 +144,7 @@ function detectTone(words, lower) {
 }
 
 /**
- * Detect language, dialect, formality, and tone of a user message.
+ * Detect language, dialect, formality, tone, and explicit requests.
  *
  * @param {string} message
  * @returns {{
@@ -101,21 +153,31 @@ function detectTone(words, lower) {
  *   formality: 'casual' | 'formal' | 'neutral',
  *   tone: 'greeting' | 'formal' | 'neutral',
  *   confidence: number,
- *   dialectTokensFound: string[]
+ *   dialectTokensFound: string[],
+ *   explicitRequest: { requested: boolean, lang: string|null, dialect: string|null },
+ *   utaraScore: number,
+ *   kelantanScore: number,
  * }}
  */
 function detectLanguageAndDialect(message) {
   if (!message || typeof message !== 'string') {
-    return { language: 'en', dialect: null, formality: 'neutral', tone: 'neutral', confidence: 0, dialectTokensFound: [] };
+    return { language: 'en', dialect: null, formality: 'neutral', tone: 'neutral', confidence: 0,
+             dialectTokensFound: [], explicitRequest: { requested: false, lang: null, dialect: null },
+             utaraScore: 0, kelantanScore: 0 };
   }
 
   const lower = message.toLowerCase().trim();
   const words = lower.split(/\s+/);
 
+  // Check for explicit dialect/language requests first
+  const explicitRequest = detectExplicitRequest(message);
+
   // Count token matches
   let msScore = 0, enScore = 0, utaraScore = 0, kelantanScore = 0;
   let casualScore = 0, formalScore = 0;
   const dialectTokensFound = [];
+  const utaraTokensFound = [];
+  const kelantanTokensFound = [];
 
   for (const w of words) {
     if (MALAY_TOKENS.includes(w)) msScore++;
@@ -125,18 +187,18 @@ function detectLanguageAndDialect(message) {
   // Utara check — multi-word aware
   for (const tok of UTARA_TOKENS) {
     if (tok.includes(' ')) {
-      if (lower.includes(tok)) { utaraScore += 2; msScore += 2; dialectTokensFound.push(tok); }
+      if (lower.includes(tok)) { utaraScore += 2; msScore += 2; utaraTokensFound.push(tok); dialectTokensFound.push(tok); }
     } else {
-      if (words.includes(tok)) { utaraScore += 2; msScore++; dialectTokensFound.push(tok); }
+      if (words.includes(tok)) { utaraScore += 2; msScore++; utaraTokensFound.push(tok); dialectTokensFound.push(tok); }
     }
   }
 
-  // Kelantan check
+  // Kelantan check — multi-word aware
   for (const tok of KELANTAN_TOKENS) {
     if (tok.includes(' ')) {
-      if (lower.includes(tok)) { kelantanScore += 2; msScore += 2; dialectTokensFound.push(tok); }
+      if (lower.includes(tok)) { kelantanScore += 2; msScore += 2; kelantanTokensFound.push(tok); dialectTokensFound.push(tok); }
     } else {
-      if (words.includes(tok)) { kelantanScore += 2; msScore++; dialectTokensFound.push(tok); }
+      if (words.includes(tok)) { kelantanScore += 2; msScore++; kelantanTokensFound.push(tok); dialectTokensFound.push(tok); }
     }
   }
 
@@ -167,12 +229,28 @@ function detectLanguageAndDialect(message) {
   // Force ms if dialect markers present
   if (utaraScore > 0 || kelantanScore > 0) language = 'ms';
 
-  // Dialect
+  // Dialect — STRICT class separation: must win by clear margin
   let dialect = null;
   if (language === 'ms' || language === 'mixed') {
-    if (utaraScore >= 2) dialect = 'UTARA';
-    else if (kelantanScore >= 2) dialect = 'KELANTAN';
-    else dialect = 'STANDARD';
+    if (kelantanScore > 0 && kelantanScore > utaraScore) {
+      dialect = 'KELANTAN';
+    } else if (utaraScore > 0 && utaraScore > kelantanScore) {
+      dialect = 'UTARA';
+    } else if (kelantanScore > 0 && kelantanScore === utaraScore) {
+      // Tie: check which has more exclusive tokens
+      dialect = kelantanTokensFound.length >= utaraTokensFound.length ? 'KELANTAN' : 'UTARA';
+    } else {
+      dialect = 'STANDARD';
+    }
+  }
+
+  // If user explicitly requested a dialect, override detection
+  if (explicitRequest.requested && explicitRequest.dialect) {
+    dialect = explicitRequest.dialect;
+    if (explicitRequest.lang) language = explicitRequest.lang;
+  } else if (explicitRequest.requested && explicitRequest.lang) {
+    language = explicitRequest.lang;
+    if (explicitRequest.lang === 'en') dialect = null;
   }
 
   // Formality
@@ -187,7 +265,8 @@ function detectLanguageAndDialect(message) {
 
   const confidence = Math.min(1, (msScore + enScore + utaraScore + kelantanScore) / Math.max(totalTokens * 0.5, 1));
 
-  return { language, dialect, formality, tone, confidence, dialectTokensFound };
+  return { language, dialect, formality, tone, confidence, dialectTokensFound,
+           explicitRequest, utaraScore, kelantanScore };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -254,13 +333,33 @@ function buildSmalltalkStabilizer(langResult, dialectLevel = 'light') {
       `- Keep replies readable. Do NOT make every word dialect.`,
       `- Treat their language as normal speech — never correct or comment on dialect.`,
     ].join('\n');
+  } else if (langResult.dialect === 'KELANTAN' && langResult.tone === 'greeting') {
+    instructions = [
+      `SMALLTALK STABILIZER (ACTIVE):`,
+      `- This is a casual greeting from a Kelantanese speaker. Reply naturally.`,
+      `- Maximum ${maxSentences} sentences, maximum ${maxWords} words total.`,
+      `- Mirror at most ${dialectTokenLimit} Kelantan dialect words from the user's message.`,
+      tokensToMirror.length > 0
+        ? `- You may use these dialect tokens: ${tokensToMirror.join(', ')}. Do NOT add extra dialect words beyond these.`
+        : `- The user used Kelantan style. Reply in casual Malay with light Kelantan flavor (e.g., "demo", "gapo", "ore").`,
+      `- Follow pattern: [greeting/status response] + [return question to user]`,
+      `- Example: User: "gapo khabar" → Reply: "Alhamdulillah baik. Demo pulak macam mano?"`,
+      `- Example: User: "ambo nok tanyo" → Reply: "Boleh, tanyo je. Gapo demo nok tau?"`,
+      `- Do NOT over-do dialect. Do NOT use full Kelantanese sentences.`,
+      `- Do NOT use Utara words like "hang", "hampa", "habaq" — those are WRONG dialect.`,
+      `- Do NOT ask clarifying questions. Do NOT offer help unprompted.`,
+    ].join('\n');
   } else if (langResult.dialect === 'KELANTAN') {
     instructions = [
-      `DIALECT MIRRORING (LIGHT):`,
-      `- The user speaks Kelantanese Malay.`,
-      `- Reply in standard Malay with light understanding. Do NOT attempt full Kelantanese.`,
-      `- Use at most 1 Kelantanese acknowledgment word if appropriate.`,
-      `- Treat their language as normal speech.`,
+      `DIALECT MIRRORING (LIGHT KELANTAN):`,
+      `- The user speaks Kelantanese Malay (Klate).`,
+      `- Reply in Malay with light Kelantan flavor. Use at most ${dialectTokenLimit} Kelantan dialect words per reply.`,
+      tokensToMirror.length > 0
+        ? `- Mirror these tokens naturally: ${tokensToMirror.join(', ')}`
+        : `- Use casual Kelantan like "demo", "ore", "gapo" naturally (NOT Utara words like "hang").`,
+      `- Keep replies readable. Do NOT make every word dialect.`,
+      `- CRITICAL: Do NOT use Northern/Utara dialect words (hang, hampa, habaq, depa) — these are WRONG for Kelantan users.`,
+      `- Treat their language as normal speech — never correct or comment on dialect.`,
     ].join('\n');
   } else if (langResult.tone === 'greeting') {
     // Standard Malay or English greeting
@@ -326,9 +425,100 @@ function conservativeSpellCorrect(text, dialectTokensFound = []) {
 
 module.exports = {
   detectLanguageAndDialect,
+  detectExplicitRequest,
   buildSmalltalkStabilizer,
   conservativeSpellCorrect,
+  applyDialectPostProcess,
   UTARA_TOKENS,
   KELANTAN_TOKENS,
   GREETING_PATTERNS,
+  DIALECT_REQUEST_PATTERNS,
 };
+
+/* ═══════════════════════════════════════════════════════════
+   DIALECT POST-PROCESSOR
+   
+   Light-touch transforms for dialect flavor.
+   Rules:
+   - Pronouns & particles ONLY — never sentence structure
+   - Max 2 dialect tokens per sentence
+   - Max ~10% token ratio
+   - If confidence < 0.6 and not explicitly requested → no transforms
+   ═══════════════════════════════════════════════════════════ */
+
+/* Safe pronoun/particle transforms per dialect */
+const KELANTAN_TRANSFORMS = [
+  { from: /\bawak\b/gi,    to: 'demo' },
+  { from: /\bkamu\b/gi,    to: 'demo' },
+  { from: /\bsaya\b/gi,    to: 'ambo' },
+  { from: /\bkenapa\b/gi,  to: 'gapo' },
+  { from: /\borang\b/gi,   to: 'ore' },
+  { from: /\bmereka\b/gi,  to: 'demo' },
+  { from: /\bkita\b/gi,    to: 'kito' },
+  { from: /\bbagaimana\b/gi, to: 'guano' },
+  { from: /\bmacam mana\b/gi, to: 'guano' },
+];
+
+const UTARA_TRANSFORMS = [
+  { from: /\bawak\b/gi,    to: 'hang' },
+  { from: /\bkamu\b/gi,    to: 'hang' },
+  { from: /\bmereka\b/gi,  to: 'depa' },
+  { from: /\bkenapa\b/gi,  to: 'awat' },
+  { from: /\bbagaimana\b/gi, to: 'cemana' },
+  { from: /\bmacam mana\b/gi, to: 'cemana' },
+  { from: /\bberitahu\b/gi, to: 'habaq' },
+  { from: /\bya\b/gi,      to: 'ja' },
+];
+
+/**
+ * Apply light-touch dialect post-processing to an LLM response.
+ *
+ * @param {string} text       - LLM response text
+ * @param {string} dialect    - 'UTARA' | 'KELANTAN' | 'STANDARD' | null
+ * @param {object} [opts]
+ * @param {number} [opts.intensity=0.25]   - 0.0 to 1.0 (0 = no transform, 1 = max)
+ * @param {boolean} [opts.explicit=false]  - was this explicitly requested by user?
+ * @param {number} [opts.confidence=0]     - detection confidence
+ * @returns {string}
+ */
+function applyDialectPostProcess(text, dialect, opts = {}) {
+  const { intensity = 0.25, explicit = false, confidence = 0 } = opts;
+
+  // Skip if no dialect or intensity is off
+  if (!dialect || dialect === 'STANDARD' || !text || intensity <= 0) return text;
+  // Skip if low confidence and not explicitly requested
+  if (confidence < 0.6 && !explicit) return text;
+
+  const transforms = dialect === 'KELANTAN' ? KELANTAN_TRANSFORMS : UTARA_TRANSFORMS;
+  if (!transforms || transforms.length === 0) return text;
+
+  // Process sentence by sentence to enforce per-sentence limit
+  const sentences = text.split(/(?<=[.!?।\n])\s*/);
+  const maxPerSentence = intensity >= 0.5 ? 3 : 2;
+
+  const result = sentences.map(sentence => {
+    const words = sentence.split(/\s+/);
+    const maxTransforms = Math.max(1, Math.min(maxPerSentence, Math.floor(words.length * intensity)));
+    let applied = 0;
+
+    let out = sentence;
+    for (const { from, to } of transforms) {
+      if (applied >= maxTransforms) break;
+      if (from.test(out)) {
+        // Only replace first occurrence per sentence
+        out = out.replace(from, (match) => {
+          applied++;
+          // Preserve capitalization
+          if (match[0] === match[0].toUpperCase()) return to[0].toUpperCase() + to.slice(1);
+          return to;
+        });
+        // Reset regex lastIndex
+        from.lastIndex = 0;
+        if (applied >= maxTransforms) break;
+      }
+    }
+    return out;
+  });
+
+  return result.join(' ');
+}

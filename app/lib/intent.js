@@ -93,11 +93,11 @@ const QUESTION_WORDS = [
  * Classify user message intent.
  *
  * @param {string} message
- * @param {object} [context] - { hasImage, hasDoc, docName }
+ * @param {object} [context] - { hasImage, hasDoc, docName, convContext }
  * @returns {{ intent: string, confidence: number, reason: string, reasons: string[] }}
  */
 function classifyIntent(message, context = {}) {
-  const { hasImage = false, hasDoc = false } = context;
+  const { hasImage = false, hasDoc = false, convContext } = context;
   const reasons = [];
 
   if (!message || typeof message !== 'string') {
@@ -111,6 +111,7 @@ function classifyIntent(message, context = {}) {
   const lower = raw.toLowerCase();
   const words = lower.split(/\s+/);
   const len = raw.length;
+  const wordCount = words.length;
 
   // 0. If document attached — intent is DOCUMENT unless specifically requesting image edit
   if (hasDoc) {
@@ -179,25 +180,71 @@ function classifyIntent(message, context = {}) {
     }
   }
 
-  // 6. Short message + greeting tokens → SMALLTALK
-  if (len < 80) {
+  // 5b. Anti-smalltalk: check for task/topic nouns that indicate a real question
+  // even if the message is short or contains dialect greetings
+  const TASK_NOUNS = [
+    'invoice', 'payment', 'error', 'login', 'password', 'account', 'server',
+    'website', 'report', 'document', 'file', 'email', 'code', 'system',
+    'database', 'api', 'deploy', 'install', 'order', 'bil', 'invois',
+    'bayaran', 'resit', 'akaun', 'kata laluan', 'masalah', 'problem',
+    'harga', 'price', 'cost', 'kerja', 'projek', 'project', 'budget',
+    'meeting', 'mesyuarat', 'jadual', 'schedule', 'delivery', 'hantar',
+  ];
+  const hasTaskNoun = TASK_NOUNS.some(n => lower.includes(n));
+
+  // 5c. Check for prior-content references (follow-up signals)
+  const FOLLOWUP_SIGNALS = [
+    'yang tadi', 'tu tadi', 'pasai tu', 'pasal tu', 'yang tu',
+    'tadi', 'the one', 'from that', 'about that', 'berkenaan',
+    'lagi', 'more', 'another', 'continue', 'sambung', 'teruskan',
+  ];
+  const hasFollowUp = FOLLOWUP_SIGNALS.some(s => lower.includes(s));
+
+  // 6. IMPROVED Smalltalk gate — strict conditions:
+  //    - Message ≤ 12 words (short)
+  //    - Contains a greeting token
+  //    - NO task nouns, NO follow-up signals
+  //    - If conversation has been going on (turnCount > 2), be MORE strict
+  //    - Question marks allowed ONLY if message matches a well-known greeting ("apa khabar?")
+  const hasQuestionMark = raw.includes('?');
+  const turnCount = (convContext && convContext.turnCount) || 0;
+  const maxSmalltalkWords = turnCount > 2 ? 6 : 12; // stricter after initial turns
+
+  // Known greeting patterns that may have question marks (e.g. "apa khabar?")
+  const GREETING_QM_PATTERNS = [
+    'apa khabar', 'pa khabar', 'pa habaq', 'apa habaq', 'apa cerita',
+    'how are you', 'what\'s up', 'whats up', 'how\'s it going', 'sup',
+    'cemana', 'macam mana', 'how do you do',
+  ];
+  const isGreetingWithQM = hasQuestionMark && GREETING_QM_PATTERNS.some(p => lower.includes(p));
+  const blockByQM = hasQuestionMark && !isGreetingWithQM;
+
+  if (wordCount <= maxSmalltalkWords && !hasTaskNoun && !hasFollowUp && !blockByQM) {
     for (const token of GREETING_TOKENS) {
+      let isMatch = false;
       if (token.includes(' ')) {
-        if (lower.includes(token)) {
-          reasons.push(`greeting:${token}`);
-          return { intent: INTENT.SMALLTALK, confidence: 0.9, reason: `greeting:${token}`, reasons };
-        }
+        isMatch = lower.includes(token);
       } else {
-        if (words.includes(token)) {
-          reasons.push(`greeting:${token}`);
-          return { intent: INTENT.SMALLTALK, confidence: 0.85, reason: `greeting:${token}`, reasons };
+        isMatch = words.includes(token);
+      }
+      if (isMatch) {
+        reasons.push(`greeting:${token}`);
+        // Extra guard: dialect words that could be questions
+        // "awat", "pasaipa", "cemana", "macam mana" are question words when followed by content
+        const DIALECT_QUESTION_WORDS = ['awat', 'pasaipa', 'cemana', 'macam mana', 'watpa'];
+        const isDialectQuestion = DIALECT_QUESTION_WORDS.some(dq =>
+          lower.includes(dq) && wordCount > 3
+        );
+        if (isDialectQuestion) {
+          reasons.push('dialect_question_override');
+          return { intent: INTENT.QUESTION, confidence: 0.75, reason: 'dialect_question', reasons };
         }
+        return { intent: INTENT.SMALLTALK, confidence: 0.9, reason: `greeting:${token}`, reasons };
       }
     }
   }
 
   // 7. Question patterns
-  const hasQuestionMark = raw.includes('?');
   const hasQuestionWord = QUESTION_WORDS.some(qw => {
     if (qw.includes(' ')) return lower.includes(qw);
     return words.includes(qw) || new RegExp(`\\b${qw}\\b`, 'i').test(lower);
@@ -208,10 +255,22 @@ function classifyIntent(message, context = {}) {
     return { intent: INTENT.QUESTION, confidence: hasQuestionMark ? 0.8 : 0.7, reason: 'question_pattern', reasons };
   }
 
-  // 8. Very short message with no intent → likely smalltalk
-  if (len < 40) {
-    reasons.push('short_message');
+  // 7b. Follow-up reference or task noun in short message → QUESTION, not smalltalk
+  if (hasFollowUp || hasTaskNoun) {
+    reasons.push(hasFollowUp ? 'followup_ref' : 'task_noun');
+    return { intent: INTENT.QUESTION, confidence: 0.7, reason: hasFollowUp ? 'followup_ref' : 'task_noun', reasons };
+  }
+
+  // 8. Very short message with no intent → likely smalltalk ONLY on first interaction
+  if (len < 40 && (!convContext || convContext.turnCount <= 1)) {
+    reasons.push('short_message_first_turn');
     return { intent: INTENT.SMALLTALK, confidence: 0.5, reason: 'short_message', reasons };
+  }
+
+  // 8b. Short message in ongoing conversation → GENERAL_CHAT (likely a reply/follow-up)
+  if (len < 40) {
+    reasons.push('short_message_ongoing');
+    return { intent: INTENT.GENERAL_CHAT, confidence: 0.5, reason: 'short_ongoing', reasons };
   }
 
   // 9. If image attached but no clear edit intent → general image analysis

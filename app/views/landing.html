@@ -735,6 +735,51 @@
                     } else {
                       cursorEl.style.display = 'none';
                     }
+                    // Add quality signal buttons (thumbs up/down, copy)
+                    var qualityDiv = document.createElement('div');
+                    qualityDiv.className = 'lc-quality';
+                    qualityDiv.innerHTML =
+                      '<button class="lc-quality__btn" data-action="up" title="Good response">👍</button>' +
+                      '<button class="lc-quality__btn" data-action="down" title="Bad response">👎</button>' +
+                      '<button class="lc-quality__btn" data-action="copy" title="Copy response">📋</button>';
+                    var bubble = botDiv.querySelector('.lc-msg__bubble');
+                    if (bubble) bubble.appendChild(qualityDiv);
+
+                    // Quality signal click handlers
+                    qualityDiv.querySelectorAll('.lc-quality__btn').forEach(function(btn) {
+                      btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        var action = btn.getAttribute('data-action');
+                        if (action === 'copy') {
+                          var textToCopy = contentEl.innerText || contentEl.textContent;
+                          navigator.clipboard.writeText(textToCopy).then(function() {
+                            btn.classList.add('lc-quality__btn--copied');
+                            btn.textContent = '✓';
+                            setTimeout(function() { btn.classList.remove('lc-quality__btn--copied'); btn.textContent = '📋'; }, 1500);
+                          });
+                        } else {
+                          // Thumbs up or down
+                          var isUp = action === 'up';
+                          var siblings = qualityDiv.querySelectorAll('[data-action="up"],[data-action="down"]');
+                          siblings.forEach(function(s) { s.classList.remove('lc-quality__btn--active-up', 'lc-quality__btn--active-down'); });
+                          btn.classList.add(isUp ? 'lc-quality__btn--active-up' : 'lc-quality__btn--active-down');
+
+                          // Send feedback to server (fire-and-forget)
+                          fetch('/v1/chat/feedback', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              rating: isUp ? 'up' : 'down',
+                              route: payload.route || null,
+                              model: payload.model || null,
+                              responseLength: (contentEl.innerText || '').length,
+                            }),
+                          }).catch(function() {});
+                        }
+                      });
+                    });
+                    // Make buttons visible after a moment
+                    setTimeout(function() { qualityDiv.classList.add('lc-quality--visible'); }, 300);
                   }
 
                   if (eventType === 'error') {
@@ -773,8 +818,8 @@
       imageResult.style.display = '';
 
       var hasSource = imageData && imageData.base64;
-      var progressLabel = hasSource ? 'Enhancing image…' : 'Generating image…';
-      var progressHint = hasSource ? 'Applying your edits (15-60 seconds)' : 'This may take 15-60 seconds';
+      var progressLabel = hasSource ? 'Restoring image…' : 'Generating image…';
+      var progressHint = hasSource ? 'Cleaning & enhancing your photo (10-30 seconds)' : 'This may take 15-60 seconds';
 
       imageInner.innerHTML =
         '<div class="img-progress">' +
@@ -793,14 +838,21 @@
         reqBody.source_image = rawBase64;
         reqBody.source_image_mime = imageData.mimeType;
         reqBody.source_filename = imageData.file ? imageData.file.name : 'source.png';
-        // For restoration/enhancement, craft a better prompt
-        var lowerPrompt = (prompt || 'enhance').toLowerCase();
-        var isRestoreRequest = /\b(restore|clear|enhance|fix|clean|repair|improve|sharpen|upscale|denoise|old photo|vintage)\b/.test(lowerPrompt);
-        if (isRestoreRequest || !prompt) {
+        // Detect user intent: restore vs edit
+        var lowerPrompt = (prompt || 'restore').toLowerCase();
+        var isRestoreRequest = /\b(restore|clear|enhance|fix|clean|repair|improve|sharpen|upscale|denoise|old photo|vintage|baiki|perbaiki|tingkat|betulkan|kualiti)\b/.test(lowerPrompt);
+        var isEditRequest = /\b(change|replace|add|remove|turn|make it|transform|convert|tukar|ubah|tambah|buang|jadikan)\b/.test(lowerPrompt);
+
+        if (isEditRequest) {
+          // Creative edit mode — img2img with moderate denoise
+          reqBody.mode = 'edit';
+          reqBody.denoise = 0.30;
+        } else {
+          // Default: restore mode — neural upscaler, no diffusion hallucination
+          reqBody.mode = 'restore';
           reqBody.prompt = 'high quality restored photograph, clear, sharp, enhanced colors, professional restoration' + (prompt ? ', ' + prompt : '');
           reqBody.negative_prompt = 'blurry, noise, grain, damaged, scratched, faded, deteriorated, low quality, watermark, text, deformed';
         }
-        reqBody.denoise = 0.40;
       }
 
       fetch('/v1/image/generate', {
